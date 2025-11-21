@@ -20,3 +20,22 @@ class DataSourceLoader:
             raise KeyError(f"Data Source plugin '{name}' nije pronadjen.")
         
         return self._registry[name]()
+    
+    def register_plugin(self, cls: Type[DataSourcePlugin]):
+        """
+        Registruje klasu plugina u interni registar.
+        """
+        try:
+            # Instanciramo plugin da bismo dobili njegovo ime
+            instance = cls()
+            name = instance.name()
+            
+            if name in self._registry:
+                print(f"Upozorenje: Plugin '{name}' je već registrovan.")
+                return
+
+            self._registry[name] = cls
+            print(f"Registrovan plugin: {name}")
+            
+        except Exception as e:
+            print(f"Greška pri registraciji plugina {cls}: {e}")
