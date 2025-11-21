@@ -1,5 +1,8 @@
+import importlib
 from typing import Dict, Type, List
 from api.api.data_source import DataSourcePlugin
+import logging
+logger = logging.getLogger(__name__)
 
 class DataSourceLoader:
     def __init__(self):
@@ -31,11 +34,33 @@ class DataSourceLoader:
             name = instance.name()
             
             if name in self._registry:
-                print(f"Upozorenje: Plugin '{name}' je već registrovan.")
+                logger.warning(f"Plugin sa imenom '{name}' je već registrovan. Preskačem.")
                 return
 
             self._registry[name] = cls
-            print(f"Registrovan plugin: {name}")
+            logger.info(f"Uspešno registrovan Data Source plugin: {name}")
             
         except Exception as e:
-            print(f"Greška pri registraciji plugina {cls}: {e}")
+            print(f"Gresaka pri registraciji plugina {cls}: {e}")
+
+    def load_plugins(self, packages: List[str]):
+        """
+        Ucitava plugine iz liste navedenih paketa.
+        Args:
+            packages: Lista naziva paketa (npr. ['data_source_csv', 'data_source_json'])
+        """
+        for package in packages:
+            try:
+                module = importlib.import_module(package)
+                # Prolazimo kroz sve atribute u modulu
+                for attr_name in dir(module):
+                    attr = getattr(module, attr_name)
+                    
+                    # Provera: Da li je klasa, da li nasleđuje API, i da nije sama API klasa
+                    if (isinstance(attr, type) and 
+                        issubclass(attr, DataSourcePlugin) and 
+                        attr is not DataSourcePlugin):
+                        
+                        self.register_plugin(attr)
+            except ImportError as e:
+                print(f"Nije moguce ucitati plugin paket '{package}': {e}")
