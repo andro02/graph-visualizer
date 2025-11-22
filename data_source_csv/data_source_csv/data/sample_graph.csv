@@ -1,0 +1,4 @@
+id,label,target,weight
+A,Start,B,5
+B,End,,
+C,Middle,A,2
