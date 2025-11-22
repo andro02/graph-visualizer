@@ -1,11 +1,10 @@
+import os
+import json
 from typing import Dict, Any, List
 from api.api.data_source import DataSourcePlugin, PluginParameter, PluginParameterType
 from api.api.graph import Graph
 
 class JSONDataSource(DataSourcePlugin):
-    """
-    Konkretna implementacija Data Source plugina za JSON fajlove.
-    """
 
     def name(self) -> str:
         return "JSON Data Source"
@@ -20,5 +19,13 @@ class JSONDataSource(DataSourcePlugin):
         ]
 
     def parse(self, parameters: Dict[str, Any]) -> Graph:
-        # Za sada samo vraćamo prazan graf ili grešku, implementacija sledi
-        raise NotImplementedError("Parsiranje još nije implementirano.")
+        path = parameters.get("path")
+        if not path or not os.path.exists(path):
+            raise FileNotFoundError(f"Fajl nije pronadjen na putanji: {path}")
+
+        with open(path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        graph = Graph(directed=True)
+        
+        return graph
