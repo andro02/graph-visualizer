@@ -1,0 +1,21 @@
+{
+  "name": "Kompanija X",
+  "type": "Organizacija",
+  "departments": [
+    {
+      "name": "IT Sektor",
+      "manager": "Marko Markovic",
+      "employees": [
+        {"name": "Ana Anic", "role": "Backend Dev"},
+        {"name": "Petar Peric", "role": "Frontend Dev"}
+      ]
+    },
+    {
+      "name": "HR Sektor",
+      "manager": "Jovana Jovic",
+      "employees": [
+        {"name": "Mila Milic", "role": "Recruiter"}
+      ]
+    }
+  ]
+}
