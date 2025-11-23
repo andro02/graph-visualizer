@@ -63,17 +63,31 @@ class JSONDataSource(DataSourcePlugin):
         return node
 
     def handle_complex_value(self, graph: Graph, source_node: Node, relation_name: str, value: Any):
-        # pomocna funkcija za kreiranje grane
+        # pomocna fja za kreiranje grane
         def create_edge(target):
-            edge = Edge(source=source_node.id, target=target.id, data={"relation": relation_name})
+            s_id = str(source_node.id)
+            t_id = str(target.id)
+            edge = Edge(source=s_id, target=t_id, data={"relation": relation_name})
             graph.add_edge(edge)
 
         if isinstance(value, list):
             for i, item in enumerate(value):
-                child_id = item.get("@id") if isinstance(item, dict) else f"{source_node.id}_{relation_name}_{i}"
+                child_id = None
+                if isinstance(item, dict):
+                    child_id = item.get("@id")
+                
+                # ako nema @id, generišemo ga na osnovu roditelja
+                if not child_id:
+                    child_id = f"{source_node.id}_{relation_name}_{i}"
+
                 target_node = self.parse_recursive(graph, item, child_id)
                 create_edge(target_node)
         else:
-            child_id = value.get("@id") if isinstance(value, dict) else f"{source_node.id}_{relation_name}"
+            child_id = None
+            if isinstance(value, dict):
+                child_id = value.get("@id")            
+            if not child_id:
+                child_id = f"{source_node.id}_{relation_name}"
+
             target_node = self.parse_recursive(graph, value, child_id)
             create_edge(target_node)
