@@ -10,7 +10,7 @@ class CSVDataSource(DataSourcePlugin):
     """
 
     def name(self) -> str:
-        return "CSV Data Source Loader"
+        return "CSV Data Source"
 
     def get_parameters(self) -> List[PluginParameter]:
         return [
