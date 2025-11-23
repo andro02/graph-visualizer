@@ -51,7 +51,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = "graph_explorer.urls"
+ROOT_URLCONF = "explorer_app.urls"
 
 TEMPLATES = [
     {
@@ -68,7 +68,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = "graph_explorer.wsgi.application"
+WSGI_APPLICATION = "explorer_app.wsgi.application"
 
 
 # Database
