@@ -1,5 +1,5 @@
 -e ./api
--e ./platform
+-e ./graph_platform
 -e ./data_source_csv
 -e ./data_source_json
 -e ./simple_visualizer
