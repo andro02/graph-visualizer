@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
     name="block_visualizer",
     version="0.1.0",
-    author="andro02",
+    author="KVT",
     description="Napredni block-style vizualizer grafa sa dodatnim opcijama prikaza",
     packages=find_packages(),
     install_requires=[
