@@ -7,7 +7,7 @@ setup(
     description="Django aplikacija za vizualizaciju i upravljanje grafovima koristeći platform i pluginove",
     packages=find_packages(),
     install_requires=[
-        "platform>=0.1.0",
+        "graph_platform>=0.1.0",
         "data_source_csv>=0.1.0",
         "data_source_json>=0.1.0",
         "simple_visualizer>=0.1.0",
