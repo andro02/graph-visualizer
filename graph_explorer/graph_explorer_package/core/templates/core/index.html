@@ -79,6 +79,45 @@
         }
         button.btn-load:hover { background-color: #218838; }
         
+        /* --- TREE VIEW STILOVI --- */
+        .tree-ul {
+            list-style-type: none;
+            padding-left: 20px;
+            margin: 0;
+        }
+        
+        .tree-li {
+            margin: 5px 0;
+            white-space: nowrap;
+        }
+
+        .tree-toggle {
+            cursor: pointer;
+            display: inline-block;
+            width: 15px;
+            text-align: center;
+            margin-right: 5px;
+            font-weight: bold;
+            color: #555;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            background-color: #eee;
+            line-height: 14px;
+            font-size: 12px;
+        }
+        
+        .tree-toggle:hover { background-color: #ddd; }
+
+        .tree-label {
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .tree-label:hover { color: #007bff; text-decoration: underline; }
+        
+        /* Ciklus indikator */
+        .tree-cycle { color: #e74c3c; font-style: italic; font-size: 0.9em; margin-left: 5px; }
+
         .messages {
         position: fixed;     
         top: 20px;        
@@ -264,12 +303,136 @@
             }
         }
 
+        // --- TREE VIEW LOGIKA ---
+    
+        let graphDataCache = null; // Čuvamo podatke da ne zovemo server stalno
+
+        async function loadTreeView(graphId) {
+            const treeContainer = document.getElementById('tree-content');
+            treeContainer.innerHTML = 'Loading tree...';
+
+            try {
+                const encodedId = encodeURIComponent(graphId);
+                // 1. Dobavljamo podatke
+                const response = await fetch(`/api/graph_data/${encodedId}/`);
+                if (!response.ok) throw new Error("Failed to load tree data");
+                
+                graphDataCache = await response.json();
+                
+                // 2. Čistimo kontejner
+                treeContainer.innerHTML = '';
+                const rootUl = document.createElement('ul');
+                rootUl.className = 'tree-ul';
+                rootUl.style.paddingLeft = '0px';
+                treeContainer.appendChild(rootUl);
+
+                // 3. Pronalazimo korene (Nodes koji nisu target nijedne veze)
+                // (Ili ako je cikličan graf pa nema korena, uzimamo prvi node)
+                const targets = new Set(graphDataCache.links.map(l => l.target));
+                let roots = graphDataCache.nodes.filter(n => !targets.has(n.id));
+                
+                if (roots.length === 0 && graphDataCache.nodes.length > 0) {
+                    roots = [graphDataCache.nodes[0]]; // Fallback za cikluse
+                }
+
+                // 4. Renderujemo korene
+                roots.forEach(node => {
+                    renderTreeNode(rootUl, node, []);
+                });
+
+            } catch (error) {
+                console.error(error);
+                treeContainer.innerHTML = 'Error loading tree.';
+            }
+        }
+
+        function renderTreeNode(parentElement, node, visitedPath) {
+            const li = document.createElement('li');
+            li.className = 'tree-li';
+            
+            // Provera da li ovaj čvor ima decu (izlazne veze)
+            const childrenLinks = graphDataCache.links.filter(l => l.source === node.id);
+            const hasChildren = childrenLinks.length > 0;
+
+            // 1. Toggle dugme (+)
+            if (hasChildren) {
+                const toggleBtn = document.createElement('span');
+                toggleBtn.className = 'tree-toggle';
+                toggleBtn.textContent = '+';
+                toggleBtn.onclick = (e) => toggleNode(e, node, childrenLinks, visitedPath);
+                li.appendChild(toggleBtn);
+            } else {
+                // Spacer da poravna tekst
+                const spacer = document.createElement('span');
+                spacer.style.display = 'inline-block';
+                spacer.style.width = '22px'; // width + margin od toggle dugmeta
+                li.appendChild(spacer);
+            }
+
+            // 2. Labela
+            const labelSpan = document.createElement('span');
+            labelSpan.className = 'tree-label';
+            labelSpan.textContent = node.label;
+            // Ovde možemo dodati onClick da selektuje čvor u Main View-u kasnije
+            li.appendChild(labelSpan);
+
+            // 3. Kontejner za decu (inicijalno sakriven)
+            if (hasChildren) {
+                const childrenUl = document.createElement('ul');
+                childrenUl.className = 'tree-ul';
+                childrenUl.style.display = 'none'; // Sakriveno
+                li.appendChild(childrenUl);
+            }
+
+            parentElement.appendChild(li);
+        }
+
+        function toggleNode(event, node, childrenLinks, visitedPath) {
+            const btn = event.target;
+            const li = btn.parentElement;
+            const childrenUl = li.querySelector('ul');
+
+            if (childrenUl.style.display === 'none') {
+                // --- EXPAND (Otvori) ---
+                childrenUl.style.display = 'block';
+                btn.textContent = '-';
+
+                // Ako je prvi put otvaramo (prazna je), popuni je
+                if (childrenUl.children.length === 0) {
+                    // Provera ciklusa: Da li je ovaj node već bio u putanji?
+                    // (Zapravo, proveravamo da li će deca napraviti ciklus)
+                    
+                    const newPath = [...visitedPath, node.id];
+
+                    childrenLinks.forEach(link => {
+                        const childNode = graphDataCache.nodes.find(n => n.id === link.target);
+                        
+                        if (newPath.includes(childNode.id)) {
+                            // Detektovan ciklus! Samo ispišemo, ne pravimo dugme za dalje
+                            const cycleLi = document.createElement('li');
+                            cycleLi.className = 'tree-li';
+                            cycleLi.innerHTML = `<span style="margin-left:22px;">${childNode.label}</span> <span class="tree-cycle">(ciklus)</span>`;
+                            childrenUl.appendChild(cycleLi);
+                        } else {
+                            // Normalno renderovanje deteta
+                            renderTreeNode(childrenUl, childNode, newPath);
+                        }
+                    });
+                }
+            } else {
+                // --- COLLAPSE (Zatvori) ---
+                childrenUl.style.display = 'none';
+                btn.textContent = '+';
+            }
+        }
+
         // Inicijalni poziv da se popuni lista za prvi selektovani plugin
         document.addEventListener('DOMContentLoaded', () => {
             
             // Ako imamo učitan graf, prikaži ga odmah
             if (currentGraphId) {
                 loadVisualization(currentGraphId);
+                loadTreeView(currentGraphId);
             }
         });
     </script>

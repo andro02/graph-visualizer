@@ -162,3 +162,34 @@ def api_visualize(request, graph_id):
         return HttpResponse(f"Visualizer '{visualizer_name}' not found.", status=404)
     except Exception as e:
         return HttpResponse(f"Error: {str(e)}", status=500)
+    
+def api_graph_json(request, graph_id):
+    """
+    Vraća sirove podatke grafa (Nodes/Edges) u JSON formatu.
+    Ovo koristi Tree View da izgradi strukturu na klijentu.
+    """
+    manager = GraphManager()
+    
+    try:
+        decoded_key = base64.urlsafe_b64decode(graph_id).decode()
+    except Exception:
+        return HttpResponseNotFound("Nevalidan ID grafa.")
+
+    if decoded_key not in manager._cache:
+        return HttpResponseNotFound("Graf nije pronađen.")
+    
+    graph = manager._cache[decoded_key]
+    
+    # Ručna serijalizacija (da ne zavisimo od to_dict metoda u modelima)
+    nodes = []
+    for n in graph.nodes:
+        label = getattr(n, "label", str(n.id)) or str(n.id)
+        nodes.append({"id": str(n.id), "label": label})
+        
+    links = []
+    for e in graph.edges:
+        s = e.source.id if hasattr(e.source, "id") else e.source
+        t = e.target.id if hasattr(e.target, "id") else e.target
+        links.append({"source": str(s), "target": str(t)})
+        
+    return JsonResponse({"nodes": nodes, "links": links})
