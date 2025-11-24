@@ -3,14 +3,14 @@ from django.shortcuts import render
 from django.views import View
 from django.conf import settings
 from pathlib import Path
-
-# Importujemo Loader
-from graph_platform.platform.data_source_loader import DataSourceLoader
+from graph_platform.platform.graph_manager import GraphManager
 
 class IndexView(View):
     def get(self, request):
-        # 1. Inicijalizacija Loadera
-        loader = DataSourceLoader()
+        # Inicijalizacija Loadera
+        manager = GraphManager()
+        loader = manager.get_data_source_loader()
+
         known_plugins = ["data_source_json.data_source_json", "data_source_csv.data_source_csv"]
         loader.load_plugins(known_plugins)
         
