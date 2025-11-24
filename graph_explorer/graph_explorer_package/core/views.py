@@ -1,25 +1,45 @@
 import os
-from django.shortcuts import render, redirect
-from django.views import View
-from django.conf import settings
-from django.contrib import messages
+import base64
+import inspect
 from pathlib import Path
-from graph_platform.platform.graph_manager import GraphManager
+from django.shortcuts import render
+from django.views import View
+from django.contrib import messages
 from django.http import JsonResponse, HttpResponse, HttpResponseNotFound
+from graph_platform.platform.graph_manager import GraphManager
+from graph_platform.platform.visualizer_loader import VisualizerLoader
 
 class IndexView(View):
-    def _get_context_data(self):
-        """Pomoćna metoda koja priprema podatke za dropdown menije."""
+    def _get_context_data(self, selected_visualizer=None):
+        """Priprema podatke za dropdown menije."""
         manager = GraphManager()
         loader = manager.get_data_source_loader()
+
+        vis_loader = VisualizerLoader()
+        vis_loader = VisualizerLoader()
         
-        # ucitavanje poznatih plugina
+        # Ručno uvozimo i registrujemo vizualizere da budemo 100% sigurni
+        try:
+            from simple_visualizer.simple_visualizer.plugin import SimpleVisualizer
+            vis_loader.register_visualizer(SimpleVisualizer().name(), SimpleVisualizer)
+        except ImportError as e:
+            print(f"Greška pri učitavanju SimpleVisualizer: {e}")
+
+        try:
+            from block_visualizer.block_visualizer.plugin import BlockVisualizer
+            vis_loader.register_visualizer(BlockVisualizer().name(), BlockVisualizer)
+        except ImportError as e:
+            print(f"Greška pri učitavanju BlockVisualizer: {e}")
+            
+        visualizers = vis_loader.list_visualizers()
+        
+        # Učitavanje pluginova
         known_plugins = ["data_source_json.data_source_json", "data_source_csv.data_source_csv"]
         loader.load_plugins(known_plugins)
         
         plugins = loader.get_available_plugins()
         
-        # skeniranje fajlova
+        # Skeniranje fajlova
         files_map = {}
         base_dir = Path(__file__).resolve().parent.parent.parent.parent
         
@@ -37,71 +57,108 @@ class IndexView(View):
                         if os.path.isfile(os.path.join(folder_path, file)):
                             full_path = os.path.join(folder_path, file)
                             files_map[plugin_name].append({'name': file, 'path': full_path})
-                except Exception as e:
-                    print(f"Greska pri citanju foldera {folder_path}: {e}")
+                except Exception:
+                    pass
 
         return {
             "plugins": plugins,
             "files_map": files_map,
+            "visualizers": visualizers,
+            "selected_visualizer": selected_visualizer,
         }
 
     def get(self, request):
-        # Prikazuje praznu formu (resetovanu)
         context = self._get_context_data()
         return render(request, "core/index.html", context)
 
     def post(self, request):
         plugin_name = request.POST.get('plugin_name')
         file_path = request.POST.get('source_path')
+        
+        # 1. Hvatamo šta je korisnik izabrao za vizualizer
+        visualizer = request.POST.get('visualizer') 
 
         if not plugin_name or not file_path:
             messages.error(request, "Morate izabrati plugin i fajl!")
-            return self.get(request)
+            # Vraćamo i vizualizer da se ne resetuje
+            context = self._get_context_data(selected_visualizer=visualizer)
+            return render(request, "core/index.html", context)
 
         manager = GraphManager()
         try:
-            # Učitavamo graf i smeštamo u keš
-            # Šaljemo "path" parametar (CSV plugin mora biti podešen da ovo prihvata)
             graph = manager.load_graph_from_source(plugin_name, {"path": file_path})
             
-            messages.success(request, f"Graf uspešno učitan! ({len(graph.nodes)} čvorova, {len(graph.edges)} veza)")
+            graph_id = f"{plugin_name}_{file_path}"
+            raw_cache_key = f"{plugin_name}_{file_path}"
+            graph_id_safe = base64.urlsafe_b64encode(raw_cache_key.encode()).decode()
+            
+            messages.success(request, f"Graf uspešno učitan! ({len(graph.nodes)} čvorova)")
+            
+            # 2. Šaljemo visualizer nazad u kontekst
+            context = self._get_context_data(selected_visualizer=visualizer)
+            context['graph_id'] = graph_id_safe
+            
+            return render(request, "core/index.html", context)
+            
         except Exception as e:
             messages.error(request, f"Greška pri učitavanju: {str(e)}")
         
-        # resetuje select polja na pocetno stanje
-        return self.get(request)
-    
+        # I ovde vraćamo vizualizer
+        context = self._get_context_data(selected_visualizer=visualizer)
+        return render(request, "core/index.html", context)
+
+# --- API Funkcije ostaju iste ---
 def api_graphs(request):
-    """
-    Vraca listu ID-jeva ucitanih grafova iz kesa.
-    """
     manager = GraphManager()
-    # Vraćamo ključeve iz keša (ID grafova)
     loaded_graphs = list(manager._cache.keys())
     return JsonResponse({"graphs": loaded_graphs})
 
 def api_visualize(request, graph_id):
-    """
-    Vraca HTML vizualizaciju za zadati graph_id.
-    """
+    """Vraća HTML vizualizaciju za zadati graph_id."""
+    visualizer_name = request.GET.get('visualizer')
     manager = GraphManager()
     
-    #Provera da li graf postoji u kesu
-    # graph_id da se poklapa sa kljucem u manager._cache)
-    if graph_id not in manager._cache:
-        return HttpResponseNotFound(f"Graf '{graph_id}' nije pronadjen u memoriji.")
-    
-    graph = manager._cache[graph_id]
-    
-    # Biramo vizualizer
     try:
-        from block_visualizer.block_visualizer.plugin import BlockVisualizer
-        manager.set_visualizer(BlockVisualizer())
+        # 1. Dekodiramo ID
+        decoded_key = base64.urlsafe_b64decode(graph_id).decode()
+    except Exception:
+        return HttpResponseNotFound("Nevalidan ID grafa.")
+
+    # 2. Proveravamo keš
+    if decoded_key not in manager._cache:
+        return HttpResponseNotFound(f"Graf nije pronadjen.")
+    
+    graph = manager._cache[decoded_key]
+
+    # Dinamičko učitavanje vizualizera
+    if not visualizer_name:
+        return HttpResponse("Please select a visualizer", status=400)
+    
+    # 3. Renderujemo
+    try:
+        vis_loader = VisualizerLoader()
         
-        # renderovanje
-        html_output = manager.render(graph)
-        return HttpResponse(html_output)
-    except ImportError:
-        return HttpResponse("BlockVisualizer nije instaliran.", status=500)
+        # Ponovo registrujemo da bismo ih našli
+        from simple_visualizer.simple_visualizer.plugin import SimpleVisualizer
+        vis_loader.register_visualizer(SimpleVisualizer().name(), SimpleVisualizer)
+        
+        from block_visualizer.block_visualizer.plugin import BlockVisualizer
+        print(f"👀 GDE JE BLOCK? -> {inspect.getfile(BlockVisualizer)}")
+        
+        # Provera da li smo slučajno uvezli SimpleVisualizer pod imenom BlockVisualizer
+        dummy_instance = BlockVisualizer()
+        print(f"👀 KAKO SE ZOVE? -> {dummy_instance.name()}")
+        print(f"👀 ŠTA JE OVO? -> {type(dummy_instance)}")
+        
+        vis_loader.register_visualizer(BlockVisualizer().name(), BlockVisualizer)
+        # --------------------------------
+        
+        vis_instance = vis_loader.get_visualizer(visualizer_name)
+        
+        manager.set_visualizer(vis_instance)
+        return HttpResponse(manager.render(graph))
+        
+    except KeyError:
+        return HttpResponse(f"Visualizer '{visualizer_name}' not found.", status=404)
     except Exception as e:
-        return HttpResponse(f"Greska pri renderovanju: {str(e)}", status=500)
+        return HttpResponse(f"Error: {str(e)}", status=500)

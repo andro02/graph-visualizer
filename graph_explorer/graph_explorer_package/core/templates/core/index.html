@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Graph Visualizer</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
         html, body { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
         
@@ -127,6 +128,21 @@
         <header class="header">
             <form method="post" class="toolbar-form">
                 {% csrf_token %}
+
+                <div class="form-group">
+                    <label>View:</label>
+                    <select name="visualizer" id="visualizer-select" onchange="changeVisualizer()">
+                        <option value="" disabled>-- Select a visualizer --</option>    
+                        {% for vis in visualizers %}
+                            <option value="{{ vis }}" 
+                                {% if vis == selected_visualizer %}selected
+                                {% elif not selected_visualizer and forloop.first %}selected
+                                {% endif %}>
+                                {{ vis }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
                 
                 <div class="form-group">
                     <label>Source:</label>
@@ -162,20 +178,22 @@
 
         <div class="bird-view">
             <h3 class="panel-title">Bird View</h3>
-            </div>
+        </div>
 
-        <main class="main-view">
-            <div id="main-content">
-                <h2>Main View Canvas</h2>
-                <p>Select a file and click Load Graph</p>
+        <main class="main-view" id="main-container">
+            <div id="main-content" style="width: 100%; height: 100%; overflow: auto;">
+                <div style="text-align: center; padding-top: 50px; color: #888;">
+                    <h2>Main View Canvas</h2>
+                    <p>Select a file and click Load Graph</p>
+                </div>
             </div>
         </main>
-
     </div>
 
     <script>
         // Podaci iz Django View-a (prebačeni u JS objekat)
         const filesMap = {{ files_map|safe }}; 
+        const currentGraphId = "{{ graph_id|default:'' }}"; //da li je django poslao id
 
         function updateFiles() {
             const pluginSelect = document.getElementById('plugin-select');
@@ -202,8 +220,58 @@
             }
         }
 
+        function changeVisualizer() {
+            if (currentGraphId) {
+                loadVisualization(currentGraphId);
+            }
+        }
+
+        async function loadVisualization(graphId) {
+            if (!graphId) return;
+            const visSelect = document.getElementById('visualizer-select');
+            const selectedVis = visSelect.value;
+
+            const mainContent = document.getElementById('main-content');
+            mainContent.innerHTML = '<p style="text-align:center; margin-top:20px;">Loading visualization...</p>';
+
+            try {
+                const encodedId = encodeURIComponent(graphId); 
+                const response = await fetch(`/api/visualize/${encodedId}/?visualizer=${selectedVis}`);
+                
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.status}`);
+                }
+
+                const htmlData = await response.text();
+                
+                // 1. Ubacimo HTML
+                mainContent.innerHTML = htmlData;
+
+                // 2. RUČNO IZVRŠAVANJE SKRIPTI
+                // Browser ne izvrsava <script> tagove ubacene preko innerHTML.
+                // Moramo ih naci i rucno pokrenuti.
+                const scripts = mainContent.querySelectorAll("script");
+                scripts.forEach(oldScript => {
+                    const newScript = document.createElement("script");
+                    Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+                    newScript.appendChild(document.createTextNode(oldScript.innerHTML));
+                    oldScript.parentNode.replaceChild(newScript, oldScript);
+                });
+
+            } catch (error) {
+                console.error("Visualization error:", error);
+                mainContent.innerHTML = `<p style="color:red; text-align:center;">Error loading visualization: ${error.message}</p>`;
+            }
+        }
+
         // Inicijalni poziv da se popuni lista za prvi selektovani plugin
-        document.addEventListener('DOMContentLoaded', updateFiles);
+        document.addEventListener('DOMContentLoaded', () => {
+            
+            // Ako imamo učitan graf, prikaži ga odmah
+            if (currentGraphId) {
+                loadVisualization(currentGraphId);
+            }
+        });
     </script>
 </body>
 </html>

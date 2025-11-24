@@ -22,6 +22,6 @@ from core import views
 urlpatterns = [
     path("admin/", admin.site.urls),
     path('', views.IndexView.as_view(), name='index'),
-    # path('api/graphs/', views.api_graphs, name='api_graphs'),
-    # path('api/visualize/<str:graph_id>/', views.api_visualize, name='api_visualize'),
+    path('api/graphs/', views.api_graphs, name='api_graphs'),
+    path('api/visualize/<path:graph_id>/', views.api_visualize, name='api_visualize'),
 ]
