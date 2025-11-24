@@ -15,7 +15,7 @@ class CSVDataSource(DataSourcePlugin):
     def get_parameters(self) -> List[PluginParameter]:
         return [
             PluginParameter(
-                name="csv_path",
+                name="path",
                 description="Putanja do CSV fajla",
                 type=PluginParameterType.FILE
             ),
@@ -29,7 +29,7 @@ class CSVDataSource(DataSourcePlugin):
         ]
 
     def parse(self, parameters: Dict[str, Any]) -> Graph:
-        csv_path = parameters["csv_path"]
+        csv_path = parameters.get("path", parameters.get("csv_path"))
         graph_name = parameters.get("graph_name", "CSV Graph")
 
         if not os.path.exists(csv_path):

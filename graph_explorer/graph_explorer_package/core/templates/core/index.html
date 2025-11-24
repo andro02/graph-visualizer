@@ -77,6 +77,33 @@
             margin-left: auto;
         }
         button.btn-load:hover { background-color: #218838; }
+        
+        .messages {
+        position: fixed;     
+        top: 20px;        
+        left: 50%;    
+        transform: translateX(-50%);
+        z-index: 1000;  
+        width: auto;
+        max-width: 80%;
+        padding: 0;
+        list-style: none;
+    }
+
+    .messages li {
+        padding: 15px 25px;
+        margin-bottom: 10px;
+        border-radius: 5px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        font-weight: bold;
+        animation: fadeOut 3s forwards;
+    }
+
+    @keyframes fadeOut {
+        0% { opacity: 1; }
+        80% { opacity: 1; }
+        100% { opacity: 0; display: none; }
+    }
 
         h3.panel-title { margin: 0 0 10px 0; font-size: 0.85rem; text-transform: uppercase; color: #999; letter-spacing: 1px; }
 
@@ -84,85 +111,99 @@
 </head>
 <body>
 
-<div class="app-container">
-    
-    <header class="header">
-        <form method="post" class="toolbar-form">
-            {% csrf_token %}
-            
-            <div class="form-group">
-                <label>Source:</label>
-                <select name="plugin_name" id="plugin-select" onchange="updateFiles()">
-                    {% for plugin in plugins %}
-                        <option value="{{ plugin }}">{{ plugin }}</option>
-                    {% endfor %}
-                </select>
+    {% if messages %}
+        <ul class="messages" style="list-style:none; padding:10px; margin-bottom:20px;">
+            {% for message in messages %}
+            <li style="padding:10px; border-radius:5px; 
+                {% if message.tags == 'success' %}background:#d4edda; color:#155724;{% endif %}
+                {% if message.tags == 'error' %}background:#f8d7da; color:#721c24;{% endif %}">
+                {{ message }}
+            </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+    <div class="app-container">
+        
+        <header class="header">
+            <form method="post" class="toolbar-form">
+                {% csrf_token %}
+                
+                <div class="form-group">
+                    <label>Source:</label>
+                    <select name="plugin_name" id="plugin-select" onchange="updateFiles()">
+                        <option value="" selected disabled>-- Select a source --</option>   
+                            {% for plugin in plugins %}
+                                <option value="{{ plugin }}">{{ plugin }}</option>
+                            {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>File:</label>
+                    <select name="source_path" id="file-select">
+                        <option value="">-- Select a file --</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Search:</label>
+                    <input type="text" placeholder="Search nodes..." style="padding: 5px; border: 1px solid #ccc; border-radius: 4px;">
+                </div>
+
+                <button type="submit" class="btn-load">Load Graph</button>
+            </form>
+        </header>
+        <aside class="tree-view">
+            <h3 class="panel-title">Tree View</h3>
+            <div id="tree-content">
+                <small>No graph loaded.</small>
+            </div>
+        </aside>
+
+        <div class="bird-view">
+            <h3 class="panel-title">Bird View</h3>
             </div>
 
-            <div class="form-group">
-                <label>File:</label>
-                <select name="source_path" id="file-select">
-                    <option value="">-- Select a file --</option>
-                </select>
+        <main class="main-view">
+            <div id="main-content">
+                <h2>Main View Canvas</h2>
+                <p>Select a file and click Load Graph</p>
             </div>
+        </main>
 
-            <div class="form-group">
-                <label>Search:</label>
-                <input type="text" placeholder="Search nodes..." style="padding: 5px; border: 1px solid #ccc; border-radius: 4px;">
-            </div>
+    </div>
 
-            <button type="submit" class="btn-load">Load Graph</button>
-        </form>
-    </header>
+    <script>
+        // Podaci iz Django View-a (prebačeni u JS objekat)
+        const filesMap = {{ files_map|safe }}; 
 
-    <aside class="tree-view">
-        <h3 class="panel-title">Tree View</h3>
-        <div id="tree-content">
-            <small>No graph loaded.</small>
-        </div>
-    </aside>
+        function updateFiles() {
+            const pluginSelect = document.getElementById('plugin-select');
+            const fileSelect = document.getElementById('file-select');
+            const selectedPlugin = pluginSelect.value;
 
-    <div class="bird-view">
-        <h3 class="panel-title">Bird View</h3>
-        </div>
+            // Resetujemo listu fajlova na default
+            fileSelect.innerHTML = '<option value="">-- Select a file --</option>';
 
-    <main class="main-view">
-        <div id="main-content">
-            <h2>Main View Canvas</h2>
-            <p>Select a file and click Load Graph</p>
-        </div>
-    </main>
+            // ako je izabran placeholder (prazan value), ne radimo nista dalje
+            if (!selectedPlugin) return;
 
-</div>
+            const files = filesMap[selectedPlugin] || [];
 
-<script>
-    // Podaci iz Django View-a (prebačeni u JS objekat)
-    const filesMap = {{ files_map|safe }}; 
-
-    function updateFiles() {
-        const pluginSelect = document.getElementById('plugin-select');
-        const fileSelect = document.getElementById('file-select');
-        const selectedPlugin = pluginSelect.value;
-        fileSelect.innerHTML = '';
-        const files = filesMap[selectedPlugin] || [];
-
-        if (files.length === 0) {
-            const option = document.createElement('option');
-            option.text = "No files found";
-            fileSelect.add(option);
-        } else {
-            files.forEach(file => {
-                const option = document.createElement('option');
-                option.value = file.path;
-                option.text = file.name;  //prikazujemo samo ime
-                fileSelect.add(option);
-            });
+            if (files.length === 0) {
+                // mozda poruka da nema fajlova
+            } else {
+                files.forEach(file => {
+                    const option = document.createElement('option');
+                    option.value = file.path;
+                    option.text = file.name;
+                    fileSelect.add(option);
+                });
+            }
         }
-    }
 
-    // Inicijalni poziv da se popuni lista za prvi selektovani plugin
-    document.addEventListener('DOMContentLoaded', updateFiles);
-</script>
-
+        // Inicijalni poziv da se popuni lista za prvi selektovani plugin
+        document.addEventListener('DOMContentLoaded', updateFiles);
+    </script>
 </body>
 </html>
