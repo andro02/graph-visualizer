@@ -11,9 +11,11 @@
             display: grid;
             height: 100vh;
             grid-template-columns: 250px 1fr; 
-            grid-template-rows: 60px 1fr 200px; 
+            /* Header (60px) + Tabs (40px) + Main + BirdView */
+            grid-template-rows: 60px 40px 1fr 200px; 
             grid-template-areas: 
                 "header header"
+                "tabs tabs"
                 "tree main"
                 "bird main";
         }
@@ -29,6 +31,63 @@
             z-index: 10;
         }
 
+        /* --- NOVO: Workspace Tabs --- */
+        .workspace-tabs {
+            grid-area: tabs;
+            background-color: #e9ecef;
+            border-bottom: 1px solid #ccc;
+            display: flex;
+            align-items: flex-end;
+            padding-left: 10px;
+            /* overflow-x: auto; */
+            gap: 5px;
+        }
+
+        .tab {
+            background-color: #d1d8e0;
+            padding: 8px 15px;
+            border-radius: 8px 8px 0 0;
+            border: 1px solid #ccc;
+            border-bottom: none;
+            cursor: pointer;
+            font-size: 0.9rem;
+            color: #555;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 100px;
+            transition: background 0.2s;
+        }
+
+        .tab:hover {
+            background-color: #ced4da;
+        }
+
+        .tab.active {
+            background-color: #fff; /* Aktivni tab se stapa sa main view */
+            font-weight: bold;
+            color: #333;
+            border-bottom: 1px solid #fff; /* Sakriva liniju ispod */
+            margin-bottom: -1px; /* Preklapa border kontejnera */
+            z-index: 5;
+        }
+
+        .tab-close {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: #777;
+        }
+        .tab-close:hover {
+            background-color: #ff6b6b;
+            color: white;
+        }
+        /* --------------------------- */
+
         .tree-view {
             grid-area: tree;
             background-color: #fff;
@@ -39,7 +98,7 @@
 
         .main-view {
             grid-area: main;
-            background-color: #e9ecef; 
+            background-color: #fff; /* Promenjeno u belo da se slaze sa aktivnim tabom */
             position: relative;
             overflow: hidden;
             display: flex;
@@ -61,6 +120,7 @@
             gap: 15px;
             align-items: center;
             width: 100%;
+            flex-wrap: wrap; 
         }
 
         .form-group { display: flex; align-items: center; gap: 5px; }
@@ -86,70 +146,35 @@
         }
         
         /* --- TREE VIEW STILOVI --- */
-        .tree-ul {
-            list-style-type: none;
-            padding-left: 20px;
-            margin: 0;
-        }
-        
-        .tree-li {
-            margin: 5px 0;
-            white-space: nowrap;
-        }
-
+        .tree-ul { list-style-type: none; padding-left: 20px; margin: 0; }
+        .tree-li { margin: 5px 0; white-space: nowrap; }
         .tree-toggle {
-            cursor: pointer;
-            display: inline-block;
-            width: 15px;
-            text-align: center;
-            margin-right: 5px;
-            font-weight: bold;
-            color: #555;
-            border: 1px solid #ccc;
-            border-radius: 3px;
-            background-color: #eee;
-            line-height: 14px;
-            font-size: 12px;
+            cursor: pointer; display: inline-block; width: 15px; text-align: center;
+            margin-right: 5px; font-weight: bold; color: #555;
+            border: 1px solid #ccc; border-radius: 3px; background-color: #eee;
+            line-height: 14px; font-size: 12px;
         }
-        
         .tree-toggle:hover { background-color: #ddd; }
-
-        .tree-label {
-            cursor: pointer;
-            font-size: 14px;
-        }
-        
+        .tree-label { cursor: pointer; font-size: 14px; }
         .tree-label:hover { color: #007bff; text-decoration: underline; }
-        
-        /* Ciklus indikator */
         .tree-cycle { color: #e74c3c; font-style: italic; font-size: 0.9em; margin-left: 5px; }
 
         .messages {
-        position: fixed;     
-        top: 20px;        
-        left: 50%;    
-        transform: translateX(-50%);
-        z-index: 1000;  
-        width: auto;
-        max-width: 80%;
-        padding: 0;
-        list-style: none;
-    }
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            z-index: 1000; width: auto; max-width: 80%; padding: 0; list-style: none;
+        }
 
-    .messages li {
-        padding: 15px 25px;
-        margin-bottom: 10px;
-        border-radius: 5px;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-        font-weight: bold;
-        animation: fadeOut 3s forwards;
-    }
+        .messages li {
+            padding: 15px 25px; margin-bottom: 10px; border-radius: 5px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2); font-weight: bold;
+            animation: fadeOut 3s forwards;
+        }
 
-    @keyframes fadeOut {
-        0% { opacity: 1; }
-        80% { opacity: 1; }
-        100% { opacity: 0; display: none; }
-    }
+        @keyframes fadeOut {
+            0% { opacity: 1; }
+            80% { opacity: 1; }
+            100% { opacity: 0; display: none; }
+        }
 
         h3.panel-title { margin: 0 0 10px 0; font-size: 0.85rem; text-transform: uppercase; color: #999; letter-spacing: 1px; }
 
@@ -158,16 +183,16 @@
 <body>
 
     {% if messages %}
-        <ul class="messages" style="list-style:none; padding:10px; margin-bottom:20px;">
+        <ul class="messages">
             {% for message in messages %}
-            <li style="padding:10px; border-radius:5px; 
-                {% if message.tags == 'success' %}background:#d4edda; color:#155724;{% endif %}
-                {% if message.tags == 'error' %}background:#f8d7da; color:#721c24;{% endif %}">
+            <li style="{% if message.tags == 'success' %}background:#d4edda; color:#155724;{% endif %}
+                       {% if message.tags == 'error' %}background:#f8d7da; color:#721c24;{% endif %}">
                 {{ message }}
             </li>
             {% endfor %}
         </ul>
     {% endif %}
+
     <div class="app-container">
         
         <header class="header">
@@ -226,9 +251,14 @@
                     <button type="button" class="btn-load" onclick="filterGraph()">Apply</button>
                 </div>
 
-                <button type="submit" class="btn-load">Load Graph</button>
+                <button type="submit" class="btn-load">Load Graph (New Tab)</button>
             </form>
         </header>
+
+        <div class="workspace-tabs" id="tabs-container">
+            <div style="padding: 10px; color: #888; font-size: 0.9em; font-style: italic;">No open workspaces</div>
+        </div>
+
         <aside class="tree-view">
             <h3 class="panel-title">Tree View</h3>
             <div id="tree-content">
@@ -245,7 +275,7 @@
             <div id="main-content" style="width: 100%; height: 100%;">
                 <div style="text-align: center; padding-top: 50px; color: #888;">
                     <h2>Main View Canvas</h2>
-                    <p>Select a file and click Load Graph</p>
+                    <p>Select a file and click Load Graph to create a Workspace</p>
                 </div>
             </div>
         </main>
@@ -257,101 +287,182 @@
             return document.querySelector('[name=csrfmiddlewaretoken]').value;
         }
 
-        // Podaci iz Django View-a (prebačeni u JS objekat)
         const filesMap = {{ files_map|safe }}; 
-        const currentGraphId = "{{ graph_id|default:'' }}"; //da li je django poslao id
+        // Django nam salje ID ako je tek kreiran graf
+        const initialGraphId = "{{ graph_id|default:'' }}"; 
+
+        // --- UPRAVLJANJE TABOVIMA (WORKSPACES) ---
+
+        let currentActiveWorkspaceId = null;
+
+        async function loadWorkspaces() {
+            try {
+                const resp = await fetch("/api/workspaces/");
+                const data = await resp.json();
+                renderTabs(data.workspaces);
+
+                // Ako imamo inicijalni ID (od POST-a), setuj ga u JS promenljivu
+                if (initialGraphId && !currentActiveWorkspaceId) {
+                    currentActiveWorkspaceId = initialGraphId;
+                    // Trigger load logic
+                    loadVisualization(initialGraphId);
+                    loadTreeView(initialGraphId);
+                } else {
+                    // Ako nemamo eksplicitno setovan, nadji onaj koji je active=true iz baze
+                    const activeWs = data.workspaces.find(w => w.active);
+                    if (activeWs) {
+                        currentActiveWorkspaceId = activeWs.id;
+                        loadVisualization(activeWs.id);
+                        loadTreeView(activeWs.id);
+                    }
+                }
+
+            } catch (e) {
+                console.error("Error loading workspaces:", e);
+            }
+        }
+
+        function renderTabs(workspaces) {
+            const container = document.getElementById('tabs-container');
+            const visSelect = document.getElementById('visualizer-select');
+            container.innerHTML = ''; // Clear
+
+            if (workspaces.length === 0) {
+                container.innerHTML = '<div style="padding: 10px; color: #888; font-size: 0.9em; font-style: italic;">No open workspaces</div>';
+                document.getElementById('main-content').innerHTML = '<p style="text-align:center; margin-top:50px; color:#999;">No active workspace.</p>';
+                document.getElementById('tree-content').innerHTML = '<small>No graph loaded.</small>';
+                return;
+            }
+
+            workspaces.forEach(ws => {
+                const tab = document.createElement('div');
+                // Provera da li je ovaj tab aktivan
+                // (Server nam kaze koji je aktivan, ili koristimo lokalnu logiku)
+                const isActive = (ws.id === currentActiveWorkspaceId) || ws.active;
+                
+                tab.className = `tab ${isActive ? 'active' : ''}`;
+
+                if (isActive && ws.visualizer) {
+                    visSelect.value = ws.visualizer;
+                }
+                
+                // Klik na tab -> Switch
+                tab.onclick = () => switchWorkspace(ws.id);
+
+                // Ime taba
+                const titleSpan = document.createElement('span');
+                titleSpan.textContent = ws.name;
+                tab.appendChild(titleSpan);
+
+                // Close dugme (x)
+                const closeBtn = document.createElement('span');
+                closeBtn.className = 'tab-close';
+                closeBtn.innerHTML = '&times;';
+                closeBtn.onclick = (e) => {
+                    e.stopPropagation(); // Da ne triggeruje switch
+                    deleteWorkspace(ws.id);
+                };
+                tab.appendChild(closeBtn);
+
+                container.appendChild(tab);
+            });
+        }
+
+        async function switchWorkspace(workspaceId) {
+            // 1. Pozovi API da javis serveru
+            try {
+                const resp = await fetch(`/api/workspace/switch/${workspaceId}/`);
+                if (!resp.ok) throw new Error("Switch failed");
+                
+                // 2. Azuriraj lokalno stanje
+                currentActiveWorkspaceId = workspaceId;
+                
+                // 3. Osvezi listu tabova (da se prebaci 'active' klasa)
+                // (Mogli bismo i samo JS-om da prebacimo klasu, ali ovo je sigurnije)
+                const wsResp = await fetch("/api/workspaces/");
+                const data = await wsResp.json();
+                renderTabs(data.workspaces);
+
+                // 4. Ucitaj sadržaj
+                loadVisualization(workspaceId);
+                loadTreeView(workspaceId);
+
+            } catch (e) {
+                console.error(e);
+                alert("Failed to switch workspace.");
+            }
+        }
+
+        async function deleteWorkspace(workspaceId) {
+            if(!confirm("Are you sure you want to close this workspace?")) return;
+
+            try {
+                const resp = await fetch(`/api/workspace/delete/${workspaceId}/`);
+                if (!resp.ok) throw new Error("Delete failed");
+                
+                // Ako smo obrisali trenutni, resetuj ID
+                if (workspaceId === currentActiveWorkspaceId) {
+                    currentActiveWorkspaceId = null;
+                }
+                
+                // Ponovo ucitaj sve (server ce odluciti ko je sledeci aktivan)
+                loadWorkspaces();
+
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+
+        // --- STARE FUNKCIJE (Prilagođene) ---
 
         function updateFiles() {
             const pluginSelect = document.getElementById('plugin-select');
             const fileSelect = document.getElementById('file-select');
             const selectedPlugin = pluginSelect.value;
-
-            // Resetujemo listu fajlova na default
             fileSelect.innerHTML = '<option value="">-- Select a file --</option>';
-
-            // ako je izabran placeholder (prazan value), ne radimo nista dalje
             if (!selectedPlugin) return;
-
             const files = filesMap[selectedPlugin] || [];
-
-            if (files.length === 0) {
-                // mozda poruka da nema fajlova
-            } else {
-                files.forEach(file => {
-                    const option = document.createElement('option');
-                    option.value = file.path;
-                    option.text = file.name;
-                    fileSelect.add(option);
-                });
-            }
+            files.forEach(file => {
+                const option = document.createElement('option');
+                option.value = file.path;
+                option.text = file.name;
+                fileSelect.add(option);
+            });
         }
-
-        async function refreshVisualization() {
-            try {
-                const resp = await fetch("/api/graphs");
-                const data = await resp.json();
-
-                if (!data.graphs || data.graphs.length === 0) {
-                    document.getElementById("main-content").innerHTML = "<p>No graph loaded.</p>";
-                    return;
-                }
-
-                const graphId = data.graphs[data.graphs.length - 1];
-
-                const htmlResp = await fetch(`/api/visualize/${graphId}`);
-                const html = await htmlResp.text();
-
-                document.getElementById("main-content").innerHTML = html;
-
-            } catch (err) {
-                console.error("Visualization error:", err);
-            }
-        }
-
 
         async function searchGraph() {
             const query = document.getElementById("searchQuery").value;
-
-            const resp = await fetch("/api/graph/search", {
+            await fetch("/api/graph/search", {
                 method: "POST",
-                headers: { 
-                    "Content-Type": "application/json", 
-                    "X-CSRFToken": getCSRFToken() 
-                },
+                headers: { "Content-Type": "application/json", "X-CSRFToken": getCSRFToken() },
                 body: JSON.stringify({ query })
             });
-
-            refreshVisualization();
+            // Refresh current
+            if (currentActiveWorkspaceId) {
+                loadVisualization(currentActiveWorkspaceId);
+                loadTreeView(currentActiveWorkspaceId);
+            }
         }
 
         async function filterGraph() {
             const attr = document.getElementById("filterAttr").value;
             const op = document.getElementById("filterOp").value;
             const value = document.getElementById("filterValue").value;
-
             await fetch("/api/graph/filter", {
                 method: "POST",
-                headers: { 
-                    "Content-Type": "application/json", 
-                    "X-CSRFToken": getCSRFToken()
-                },
+                headers: { "Content-Type": "application/json", "X-CSRFToken": getCSRFToken() },
                 body: JSON.stringify({ attribute: attr, operator: op, value })
             });
-
-            refreshVisualization();
-        }
-
-        async function resetGraph() {
-            await fetch("/api/graph/reset", { 
-                method: "POST",
-                headers: { "X-CSRFToken": getCSRFToken() }
-             });
-            refreshVisualization();
+             if (currentActiveWorkspaceId) {
+                loadVisualization(currentActiveWorkspaceId);
+                loadTreeView(currentActiveWorkspaceId);
+            }
         }
 
         function changeVisualizer() {
-            if (currentGraphId) {
-                loadVisualization(currentGraphId);
+            if (currentActiveWorkspaceId) {
+                loadVisualization(currentActiveWorkspaceId);
             }
         }
 
@@ -359,26 +470,19 @@
             if (!graphId) return;
             const visSelect = document.getElementById('visualizer-select');
             const selectedVis = visSelect.value;
-
             const mainContent = document.getElementById('main-content');
-            mainContent.innerHTML = '<p style="text-align:center; margin-top:20px;">Loading visualization...</p>';
+            
+            // mainContent.innerHTML = '<p style="text-align:center; margin-top:20px;">Loading visualization...</p>';
 
             try {
-                const encodedId = encodeURIComponent(graphId); 
-                const response = await fetch(`/api/visualize/${encodedId}/?visualizer=${selectedVis}`);
+                // Koristimo graphId (workspace UUID)
+                const response = await fetch(`/api/visualize/${graphId}/?visualizer=${selectedVis}`);
+                if (!response.ok) throw new Error(`Server error: ${response.status}`);
                 
-                if (!response.ok) {
-                    throw new Error(`Server error: ${response.status}`);
-                }
-
                 const htmlData = await response.text();
-                
-                // 1. Ubacimo HTML
                 mainContent.innerHTML = htmlData;
 
-                // 2. RUČNO IZVRŠAVANJE SKRIPTI
-                // Browser ne izvrsava <script> tagove ubacene preko innerHTML.
-                // Moramo ih naci i rucno pokrenuti.
+                // Execute scripts
                 const scripts = mainContent.querySelectorAll("script");
                 scripts.forEach(oldScript => {
                     const newScript = document.createElement("script");
@@ -386,46 +490,38 @@
                     newScript.appendChild(document.createTextNode(oldScript.innerHTML));
                     oldScript.parentNode.replaceChild(newScript, oldScript);
                 });
-
             } catch (error) {
                 console.error("Visualization error:", error);
                 mainContent.innerHTML = `<p style="color:red; text-align:center;">Error loading visualization: ${error.message}</p>`;
             }
         }
 
-        // --- TREE VIEW LOGIKA ---
-    
-        let graphDataCache = null; // Čuvamo podatke da ne zovemo server stalno
+        // --- TREE VIEW ---
+        let graphDataCache = null;
 
         async function loadTreeView(graphId) {
             const treeContainer = document.getElementById('tree-content');
-            treeContainer.innerHTML = 'Loading tree...';
+            // treeContainer.innerHTML = 'Loading tree...'; // Opciono da ne blinka
 
             try {
-                const encodedId = encodeURIComponent(graphId);
-                // 1. Dobavljamo podatke
-                const response = await fetch(`/api/graph_data/${encodedId}/`);
+                const response = await fetch(`/api/graph_data/${graphId}/`);
                 if (!response.ok) throw new Error("Failed to load tree data");
                 
                 graphDataCache = await response.json();
                 
-                // 2. Čistimo kontejner
                 treeContainer.innerHTML = '';
                 const rootUl = document.createElement('ul');
                 rootUl.className = 'tree-ul';
                 rootUl.style.paddingLeft = '0px';
                 treeContainer.appendChild(rootUl);
 
-                // 3. Pronalazimo korene (Nodes koji nisu target nijedne veze)
-                // (Ili ako je cikličan graf pa nema korena, uzimamo prvi node)
                 const targets = new Set(graphDataCache.links.map(l => l.target));
                 let roots = graphDataCache.nodes.filter(n => !targets.has(n.id));
                 
                 if (roots.length === 0 && graphDataCache.nodes.length > 0) {
-                    roots = [graphDataCache.nodes[0]]; // Fallback za cikluse
+                    roots = [graphDataCache.nodes[0]]; 
                 }
 
-                // 4. Renderujemo korene
                 roots.forEach(node => {
                     renderTreeNode(rootUl, node, []);
                 });
@@ -440,11 +536,9 @@
             const li = document.createElement('li');
             li.className = 'tree-li';
             
-            // Provera da li ovaj čvor ima decu (izlazne veze)
             const childrenLinks = graphDataCache.links.filter(l => l.source === node.id);
             const hasChildren = childrenLinks.length > 0;
 
-            // 1. Toggle dugme (+)
             if (hasChildren) {
                 const toggleBtn = document.createElement('span');
                 toggleBtn.className = 'tree-toggle';
@@ -452,25 +546,21 @@
                 toggleBtn.onclick = (e) => toggleNode(e, node, childrenLinks, visitedPath);
                 li.appendChild(toggleBtn);
             } else {
-                // Spacer da poravna tekst
                 const spacer = document.createElement('span');
                 spacer.style.display = 'inline-block';
-                spacer.style.width = '22px'; // width + margin od toggle dugmeta
+                spacer.style.width = '22px'; 
                 li.appendChild(spacer);
             }
 
-            // 2. Labela
             const labelSpan = document.createElement('span');
             labelSpan.className = 'tree-label';
             labelSpan.textContent = node.label;
-            // Ovde možemo dodati onClick da selektuje čvor u Main View-u kasnije
             li.appendChild(labelSpan);
 
-            // 3. Kontejner za decu (inicijalno sakriven)
             if (hasChildren) {
                 const childrenUl = document.createElement('ul');
                 childrenUl.className = 'tree-ul';
-                childrenUl.style.display = 'none'; // Sakriveno
+                childrenUl.style.display = 'none';
                 li.appendChild(childrenUl);
             }
 
@@ -483,48 +573,34 @@
             const childrenUl = li.querySelector('ul');
 
             if (childrenUl.style.display === 'none') {
-                // --- EXPAND (Otvori) ---
                 childrenUl.style.display = 'block';
                 btn.textContent = '-';
 
-                // Ako je prvi put otvaramo (prazna je), popuni je
                 if (childrenUl.children.length === 0) {
-                    // Provera ciklusa: Da li je ovaj node već bio u putanji?
-                    // (Zapravo, proveravamo da li će deca napraviti ciklus)
-                    
                     const newPath = [...visitedPath, node.id];
-
                     childrenLinks.forEach(link => {
                         const childNode = graphDataCache.nodes.find(n => n.id === link.target);
-                        
                         if (newPath.includes(childNode.id)) {
-                            // Detektovan ciklus! Samo ispišemo, ne pravimo dugme za dalje
                             const cycleLi = document.createElement('li');
                             cycleLi.className = 'tree-li';
                             cycleLi.innerHTML = `<span style="margin-left:22px;">${childNode.label}</span> <span class="tree-cycle">(ciklus)</span>`;
                             childrenUl.appendChild(cycleLi);
                         } else {
-                            // Normalno renderovanje deteta
                             renderTreeNode(childrenUl, childNode, newPath);
                         }
                     });
                 }
             } else {
-                // --- COLLAPSE (Zatvori) ---
                 childrenUl.style.display = 'none';
                 btn.textContent = '+';
             }
         }
 
-        // Inicijalni poziv da se popuni lista za prvi selektovani plugin
+        // --- INIT ---
         document.addEventListener('DOMContentLoaded', () => {
-            
-            // Ako imamo učitan graf, prikaži ga odmah
-            if (currentGraphId) {
-                loadVisualization(currentGraphId);
-                loadTreeView(currentGraphId);
-            }
+            loadWorkspaces();
         });
+
     </script>
 </body>
 </html>
