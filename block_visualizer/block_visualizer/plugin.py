@@ -42,7 +42,7 @@ class BlockVisualizer(BaseVisualizer):
                     if (!mainContainer || !birdContainer) return;
 
                     const width = mainContainer.clientWidth;
-                    const height = 600;
+                    const height = mainContainer.clientHeight;
                     
                     // Skaliranje za minimapu
                     const minimapScale = 0.2; 
@@ -220,7 +220,7 @@ class BlockVisualizer(BaseVisualizer):
         js_code = js_logic.replace("GRAPH_DATA_PLACEHOLDER", graph_json)
 
         return f"""
-        <div id="block-viz-container" style="width:100%; height:600px; border:1px solid #ddd; background: #f9f9f9;"></div>
+        <div id="block-viz-container" style="width:100%; height:100%; border:1px solid #ddd; background: #f9f9f9;"></div>
         <script>
             {js_code}
         </script>
