@@ -77,6 +77,12 @@
             margin-left: auto;
         }
         button.btn-load:hover { background-color: #218838; }
+
+        .form-input {
+            padding: 5px; 
+            border: 1px solid #ccc; 
+            border-radius: 4px;
+        }
         
         .messages {
         position: fixed;     
@@ -147,7 +153,22 @@
 
                 <div class="form-group">
                     <label>Search:</label>
-                    <input type="text" placeholder="Search nodes..." style="padding: 5px; border: 1px solid #ccc; border-radius: 4px;">
+                    <input id="searchQuery" type="text" placeholder="Search nodes..." class="form-input">
+                    <button type="button" class="btn-load" onclick="searchGraph()">Search</button>
+                </div>
+
+                <div class="form-group">
+                    <label>Filter:</label>
+                    <input id="filterAttr" type="text" placeholder="attribute" class="form-input">
+                    <select id="filterOp">
+                        <option value=">">></option>
+                        <option value="<"><</option>
+                        <option value="=">=</option>
+                        <option value="!=">!=</option>
+                        <option value="contains">contains</option>
+                    </select>
+                    <input id="filterValue" type="text" placeholder="value" class="form-input">
+                    <button type="button" class="btn-load" onclick="filterGraph()">Apply</button>
                 </div>
 
                 <button type="submit" class="btn-load">Load Graph</button>
@@ -174,6 +195,11 @@
     </div>
 
     <script>
+
+        function getCSRFToken() {
+            return document.querySelector('[name=csrfmiddlewaretoken]').value;
+        }
+
         // Podaci iz Django View-a (prebačeni u JS objekat)
         const filesMap = {{ files_map|safe }}; 
 
@@ -200,6 +226,69 @@
                     fileSelect.add(option);
                 });
             }
+        }
+
+        async function refreshVisualization() {
+            try {
+                const resp = await fetch("/api/graphs");
+                const data = await resp.json();
+
+                if (!data.graphs || data.graphs.length === 0) {
+                    document.getElementById("main-content").innerHTML = "<p>No graph loaded.</p>";
+                    return;
+                }
+
+                const graphId = data.graphs[data.graphs.length - 1];
+
+                const htmlResp = await fetch(`/api/visualize/${graphId}`);
+                const html = await htmlResp.text();
+
+                document.getElementById("main-content").innerHTML = html;
+
+            } catch (err) {
+                console.error("Visualization error:", err);
+            }
+        }
+
+
+        async function searchGraph() {
+            const query = document.getElementById("searchQuery").value;
+
+            const resp = await fetch("/api/graph/search", {
+                method: "POST",
+                headers: { 
+                    "Content-Type": "application/json", 
+                    "X-CSRFToken": getCSRFToken() 
+                },
+                body: JSON.stringify({ query })
+            });
+
+            refreshVisualization();
+        }
+
+        async function filterGraph() {
+            const attr = document.getElementById("filterAttr").value;
+            const op = document.getElementById("filterOp").value;
+            const value = document.getElementById("filterValue").value;
+
+            await fetch("/api/graph/filter", {
+                method: "POST",
+                headers: { 
+                    "Content-Type": "application/json", 
+                    "X-CSRFToken": getCSRFToken()
+                },
+                body: JSON.stringify({ attribute: attr, operator: op, value })
+            });
+
+            refreshVisualization();
+        }
+
+        async function resetGraph() {
+            await fetch("/api/graph/reset", { 
+                method: "POST",
+                headers: { "X-CSRFToken": getCSRFToken() }
+             });
+            refreshVisualization();
         }
 
         // Inicijalni poziv da se popuni lista za prvi selektovani plugin
