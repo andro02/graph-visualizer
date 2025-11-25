@@ -18,22 +18,21 @@ class IndexView(View):
         vis_loader = VisualizerLoader()
         vis_loader = VisualizerLoader()
         
-        # Ručno uvozimo i registrujemo vizualizere da budemo 100% sigurni
         try:
             from simple_visualizer.simple_visualizer.plugin import SimpleVisualizer
             vis_loader.register_visualizer(SimpleVisualizer().name(), SimpleVisualizer)
         except ImportError as e:
-            print(f"Greška pri učitavanju SimpleVisualizer: {e}")
+            print(f"Greska pri ucitavanju SimpleVisualizer: {e}")
 
         try:
             from block_visualizer.block_visualizer.plugin import BlockVisualizer
             vis_loader.register_visualizer(BlockVisualizer().name(), BlockVisualizer)
         except ImportError as e:
-            print(f"Greška pri učitavanju BlockVisualizer: {e}")
+            print(f"Greska pri ucitavanju BlockVisualizer: {e}")
             
         visualizers = vis_loader.list_visualizers()
         
-        # Učitavanje pluginova
+        # Ucitavanje pluginova
         known_plugins = ["data_source_json.data_source_json", "data_source_csv.data_source_csv"]
         loader.load_plugins(known_plugins)
         
@@ -101,7 +100,7 @@ class IndexView(View):
             return render(request, "core/index.html", context)
             
         except Exception as e:
-            messages.error(request, f"Greška pri učitavanju: {str(e)}")
+            messages.error(request, f"Greska pri ucitavanju: {str(e)}")
         
         # I ovde vraćamo vizualizer
         context = self._get_context_data(selected_visualizer=visualizer)
@@ -114,41 +113,30 @@ def api_graphs(request):
     return JsonResponse({"graphs": loaded_graphs})
 
 def api_visualize(request, graph_id):
-    """Vraća HTML vizualizaciju za zadati graph_id."""
+    """Vraca HTML vizualizaciju za zadati graph_id."""
     visualizer_name = request.GET.get('visualizer')
     manager = GraphManager()
     
     try:
-        # 1. Dekodiramo ID
         decoded_key = base64.urlsafe_b64decode(graph_id).decode()
     except Exception:
         return HttpResponseNotFound("Nevalidan ID grafa.")
 
-    # 2. Proveravamo keš
+    # proveravamo kes
     if decoded_key not in manager._cache:
         return HttpResponseNotFound(f"Graf nije pronadjen.")
     
     graph = manager._cache[decoded_key]
 
-    # Dinamičko učitavanje vizualizera
     if not visualizer_name:
         return HttpResponse("Please select a visualizer", status=400)
     
-    # 3. Renderujemo
     try:
         vis_loader = VisualizerLoader()
-        
-        # Ponovo registrujemo da bismo ih našli
         from simple_visualizer.simple_visualizer.plugin import SimpleVisualizer
         vis_loader.register_visualizer(SimpleVisualizer().name(), SimpleVisualizer)
-        
-        from block_visualizer.block_visualizer.plugin import BlockVisualizer
-        print(f"👀 GDE JE BLOCK? -> {inspect.getfile(BlockVisualizer)}")
-        
-        # Provera da li smo slučajno uvezli SimpleVisualizer pod imenom BlockVisualizer
+        from block_visualizer.block_visualizer.plugin import BlockVisualizer        
         dummy_instance = BlockVisualizer()
-        print(f"👀 KAKO SE ZOVE? -> {dummy_instance.name()}")
-        print(f"👀 ŠTA JE OVO? -> {type(dummy_instance)}")
         
         vis_loader.register_visualizer(BlockVisualizer().name(), BlockVisualizer)
         # --------------------------------
@@ -165,7 +153,7 @@ def api_visualize(request, graph_id):
     
 def api_graph_json(request, graph_id):
     """
-    Vraća sirove podatke grafa (Nodes/Edges) u JSON formatu.
+    Vraca sirove podatke grafa (Nodes/Edges) u JSON formatu.
     Ovo koristi Tree View da izgradi strukturu na klijentu.
     """
     manager = GraphManager()
@@ -176,11 +164,10 @@ def api_graph_json(request, graph_id):
         return HttpResponseNotFound("Nevalidan ID grafa.")
 
     if decoded_key not in manager._cache:
-        return HttpResponseNotFound("Graf nije pronađen.")
+        return HttpResponseNotFound("Graf nije pronadjen.")
     
     graph = manager._cache[decoded_key]
     
-    # Ručna serijalizacija (da ne zavisimo od to_dict metoda u modelima)
     nodes = []
     for n in graph.nodes:
         label = getattr(n, "label", str(n.id)) or str(n.id)

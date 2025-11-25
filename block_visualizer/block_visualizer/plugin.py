@@ -13,12 +13,11 @@ class BlockVisualizer(BaseVisualizer):
             attrs = getattr(n, "data", {})
             filtered_attrs = {k: v for k, v in attrs.items() if k not in ['id', 'label']}
             
-            # FIX: Ako je label prazan string, koristi ID
             label_text = n.label if n.label else n.id
 
             nodes_data.append({
                 "id": str(n.id), 
-                "label": str(label_text), # Šaljemo popunjen label ili ID
+                "label": str(label_text),
                 "attributes": filtered_attrs
             })
 
@@ -35,120 +34,185 @@ class BlockVisualizer(BaseVisualizer):
             (function() {{
                 try {{
                     const data = GRAPH_DATA_PLACEHOLDER;
-                    const container = document.getElementById('block-viz-container');
                     
-                    if (!container) throw new Error("Container not found");
+                    // Kontejneri
+                    const mainContainer = document.getElementById('block-viz-container');
+                    const birdContainer = document.getElementById('bird-view-container');
                     
-                    const width = container.clientWidth || 800;
+                    if (!mainContainer || !birdContainer) return;
+
+                    const width = mainContainer.clientWidth;
                     const height = 600;
+                    
+                    // Skaliranje za minimapu
+                    const minimapScale = 0.2; 
                     
                     const nodeWidth = 180; 
                     const headerHeight = 30;
-                    const lineHeight = 18;
+                    const lineHeight = 16;
                     const padding = 10;
 
+                    // --- 1. MAIN VIEW ---
                     d3.select("#block-viz-container").html("");
-
                     const svg = d3.select("#block-viz-container").append("svg")
-                        .attr("width", "100%")
-                        .attr("height", height)
-                        .style("background-color", "#f9f9f9")
-                        .call(d3.zoom().on("zoom", (event) => g.attr("transform", event.transform)));
+                        .attr("width", "100%").attr("height", height)
+                        .style("background", "#f9f9f9")
+                        .attr("viewBox", `0 0 ${{width}} ${{height}}`);
 
                     const g = svg.append("g");
 
+                    // --- 2. BIRD VIEW ---
+                    d3.select("#bird-view-container").html("");
+                    const birdSvg = d3.select("#bird-view-container").append("svg")
+                        .attr("width", "100%").attr("height", "100%")
+                        .style("background", "#e0e0e0")
+                        .style("border", "1px solid #ccc");
+                    
+                    const birdG = birdSvg.append("g")
+                        .attr("transform", `scale(${{minimapScale}})`);
+
+                    const viewportRect = birdSvg.append("rect")
+                        .attr("fill", "none").attr("stroke", "red").attr("stroke-width", 2);
+
+                    // --- ZOOM SYNC ---
+                    const zoom = d3.zoom()
+                        .scaleExtent([0.1, 4])
+                        .on("zoom", (event) => {{
+                            g.attr("transform", event.transform);
+                            
+                            const t = event.transform;
+                            const mapX = (-t.x / t.k) * minimapScale;
+                            const mapY = (-t.y / t.k) * minimapScale;
+                            const mapW = (width / t.k) * minimapScale;
+                            const mapH = (height / t.k) * minimapScale;
+
+                            viewportRect
+                                .attr("x", mapX).attr("y", mapY)
+                                .attr("width", mapW).attr("height", mapH);
+                        }});
+
+                    svg.call(zoom);
+
+                    // --- SIMULATION ---
                     const simulation = d3.forceSimulation(data.nodes)
                         .force("link", d3.forceLink(data.links).id(d => d.id).distance(250))
-                        .force("charge", d3.forceManyBody().strength(-2000))
+                        .force("charge", d3.forceManyBody().strength(-1500))
                         .force("center", d3.forceCenter(width / 2, height / 2))
                         .force("collide", d3.forceCollide(nodeWidth / 1.5));
 
-                    svg.append("defs").append("marker")
-                        .attr("id", "arrowhead-block")
-                        .attr("viewBox", "0 -5 10 10")
-                        .attr("refX", nodeWidth/2 + 10) 
-                        .attr("refY", 0)
-                        .attr("markerWidth", 6).attr("markerHeight", 6)
-                        .attr("orient", "auto")
-                        .append("path").attr("d", "M0,-5L10,0L0,5").attr("fill", "#555");
-
-                    const link = g.append("g").selectAll("line")
-                        .data(data.links).join("line")
-                        .attr("stroke", "#555").attr("stroke-width", 2)
-                        .attr("marker-end", "url(#arrowhead-block)");
-
-                    const node = g.append("g").selectAll("g")
-                        .data(data.nodes).join("g")
-                        .call(d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended));
-
-                    node.append("rect")
-                        .attr("class", "node-box")
-                        .attr("width", nodeWidth)
-                        .attr("x", -nodeWidth / 2)
-                        .attr("rx", 8).attr("ry", 8)
-                        .attr("fill", "white")
-                        .attr("stroke", "#2c3e50").attr("stroke-width", 2);
-
-                    // 2. Naslov (FIX: Prikazuje Labelu ILI ID ako je labela prazna)
-                    node.append("text")
-                        .text(d => d.label || d.id) 
-                        .attr("y", -headerHeight/2 - 5)
-                        .attr("text-anchor", "middle")
-                        .style("font-weight", "bold")
-                        .style("font-family", "sans-serif")
-                        .style("font-size", "14px")
-                        .style("fill", "#2c3e50");
-
-                    node.append("line")
-                        .attr("x1", -nodeWidth/2).attr("y1", -10)
-                        .attr("x2", nodeWidth/2).attr("y2", -10)
-                        .attr("stroke", "#eee").attr("stroke-width", 2);
-
-                    node.each(function(d) {{
-                        const el = d3.select(this);
-                        let yPos = 10; 
-                        
-                        if (d.attributes && typeof d.attributes === 'object') {{
-                            Object.entries(d.attributes).forEach(([key, val]) => {{
-                                let valStr = String(val);
-                                if (valStr.length > 20) valStr = valStr.substring(0, 17) + "...";
-                                
-                                let textStr = key + ": " + valStr;
-
-                                el.append("text")
-                                    .text(textStr)
-                                    .attr("y", yPos)
-                                    .attr("x", -nodeWidth/2 + 10)
-                                    .style("font-size", "12px")
-                                    .style("font-family", "monospace")
-                                    .style("fill", "#555");
-                                
-                                yPos += lineHeight;
-                            }});
+                    // --- DRAW FUNCTION ---
+                    function draw(container, isMinimap) {{
+                        // Marker (samo na glavnom)
+                        if (!isMinimap) {{
+                             container.append("defs").append("marker")
+                                .attr("id", "arrowhead-block")
+                                .attr("viewBox", "0 -5 10 10")
+                                .attr("refX", nodeWidth/2 + 10).attr("refY", 0)
+                                .attr("markerWidth", 6).attr("markerHeight", 6)
+                                .attr("orient", "auto")
+                                .append("path").attr("d", "M0,-5L10,0L0,5").attr("fill", "#555");
                         }}
 
-                        const contentHeight = Math.max(50, yPos + padding);
-                        const totalHeight = contentHeight + headerHeight;
+                        const link = container.append("g").selectAll("line")
+                            .data(data.links).join("line")
+                            .attr("stroke", "#555")
+                            .attr("stroke-width", isMinimap ? 5 : 2)
+                            .attr("marker-end", isMinimap ? null : "url(#arrowhead-block)");
 
-                        el.select("rect.node-box")
-                            .attr("height", totalHeight)
-                            .attr("y", -headerHeight - 10);
-                    }});
+                        const node = container.append("g").selectAll("g")
+                            .data(data.nodes).join("g");
 
+                        if (!isMinimap) {{
+                            node.call(d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended));
+                        }}
+
+                        // Pravougaonik
+                        node.append("rect")
+                            .attr("class", "node-box")
+                            .attr("width", isMinimap ? nodeWidth/2 : nodeWidth)
+                            .attr("x", isMinimap ? -nodeWidth/4 : -nodeWidth/2)
+                            .attr("rx", 8).attr("ry", 8)
+                            .attr("fill", isMinimap ? "#888" : "white")
+                            .attr("stroke", "#2c3e50").attr("stroke-width", isMinimap ? 0 : 2);
+
+                        // Tekst i Atributi (Samo na glavnom)
+                        if (!isMinimap) {{
+                            // Naslov
+                            node.append("text")
+                                .text(d => d.label || d.id)
+                                .attr("y", -headerHeight/2 - 10)
+                                .attr("text-anchor", "middle")
+                                .attr("dominant-baseline", "middle")
+                                .style("font-weight", "bold")
+                                .style("font-family", "sans-serif")
+                                .style("font-size", "14px")
+                                .style("fill", "#2c3e50");  
+
+                            // Separator
+                            node.append("line")
+                                .attr("x1", -nodeWidth/2).attr("y1", -10)
+                                .attr("x2", nodeWidth/2).attr("y2", -10)
+                                .attr("stroke", "#ccc").attr("stroke-width", 2);
+
+                            // Atributi
+                            node.each(function(d) {{
+                                const el = d3.select(this);
+                                let yPos = 10; 
+                                if (d.attributes && typeof d.attributes === 'object') {{
+                                    Object.entries(d.attributes).forEach(([key, val]) => {{
+                                        let valStr = String(val);
+                                        if (valStr.length > 20) valStr = valStr.substring(0, 17) + "...";
+                                        let textStr = key + ": " + valStr;
+
+                                        el.append("text")
+                                            .text(textStr).attr("y", yPos).attr("x", -nodeWidth/2 + 10)
+                                            .style("font-size", "12px").style("font-family", "monospace").style("fill", "#555");
+                                        yPos += lineHeight;
+                                    }});
+                                }}
+                                // Dinamicka visina
+                                const contentHeight = Math.max(50, yPos + padding);
+                                const totalHeight = contentHeight + headerHeight;
+                                
+                                el.select("rect.node-box")
+                                    .attr("height", totalHeight)
+                                    .attr("y", -headerHeight - 15);
+                                    
+                                el.select("line").attr("y1", -headerHeight + 15).attr("y2", -headerHeight + 15);
+                                el.select("text").attr("y", -headerHeight);
+                            }});
+                        }} else {{
+                            // Na mapi fiksna visina
+                            node.select("rect").attr("height", 40).attr("y", -20);
+                        }}
+                        
+                        return {{link, node}};
+                    }}
+
+                    const mainViz = draw(g, false);
+                    const birdViz = draw(birdG, true);
+
+                    // --- TICK ---
                     simulation.on("tick", () => {{
-                        link.attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+                        // Main
+                        mainViz.link.attr("x1", d => d.source.x).attr("y1", d => d.source.y)
                             .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
-                        node.attr("transform", d => `translate(${{d.x}},${{d.y}})`);
+                        mainViz.node.attr("transform", d => `translate(${{d.x}},${{d.y}})`);
+
+                        // Bird
+                        birdViz.link.attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+                            .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+                        birdViz.node.attr("transform", d => `translate(${{d.x}},${{d.y}})`);
                     }});
 
                     function dragstarted(event, d) {{ if (!event.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; }}
                     function dragged(event, d) {{ d.fx = event.x; d.fy = event.y; }}
                     function dragended(event, d) {{ if (!event.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; }}
+                    
+                    svg.call(zoom.transform, d3.zoomIdentity);
 
                 }} catch (err) {{
                     console.error("Block Visualizer Error:", err);
-                    document.getElementById('block-viz-container').innerHTML = 
-                        `<div style='color:red; padding:20px;'>Greska u renderovanju: ${{err.message}}</div>`;
                 }}
             }})();
         """
