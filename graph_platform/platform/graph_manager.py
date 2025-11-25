@@ -2,6 +2,8 @@ from typing import Dict, Any, Optional
 from api.api.graph import Graph
 from api.api.base_visualizer import BaseVisualizer
 from graph_platform.platform.data_source_loader import DataSourceLoader
+from graph_platform.platform.search_service import SearchService
+from graph_platform.platform.filter_service import FilterService
 
 class GraphManager:
     """
@@ -21,6 +23,15 @@ class GraphManager:
             ])
             cls._instance._cache = {}
             cls.visualizer: Optional[BaseVisualizer] = None
+
+            # Search / Filter servisi
+            cls._instance.search_service = SearchService()
+            cls._instance.filter_service = FilterService()
+
+            # Inicijalni i trenutni graf
+            cls._instance.initial_graph = None
+            cls._instance.current_graph = None
+
         return cls._instance
 
     def get_data_source_loader(self):
@@ -32,6 +43,8 @@ class GraphManager:
         """
         cache_key = f"{plugin_name}_{params.get('path', '')}" 
         if cache_key in self._cache:
+            self.initial_graph = self._cache[cache_key]
+            self.current_graph = self.initial_graph
             return self._cache[cache_key]
 
         try:
@@ -43,6 +56,10 @@ class GraphManager:
 
         if not isinstance(graph, Graph):
             raise TypeError(f"Plugin '{plugin_name}' nije vratio validan Graph objekat.")
+        
+        # Sačuvaj inicijalni i trenutni graf
+        self.initial_graph = graph
+        self.current_graph = graph
 
         self._cache[cache_key] = graph
         return graph
@@ -53,8 +70,35 @@ class GraphManager:
     def render(self, graph: Graph):
         if not self.visualizer:
             raise RuntimeError("Nije postavljen nijedan vizualizer.")
+
+        graph_to_render = self.current_graph or self.initial_graph
+        if graph_to_render is None:
+            raise RuntimeError("Nijedan graf nije učitan.")
         
         if hasattr(self.visualizer, 'check_graph_compatibility'):
-             self.visualizer.check_graph_compatibility(graph)
+             self.visualizer.check_graph_compatibility(graph_to_render)
 
-        return self.visualizer.render(graph)
+        return self.visualizer.render(graph_to_render)
+    
+    def apply_search(self, query: str) -> Graph:
+        if not self.current_graph:
+            raise RuntimeError("Nijedan graf nije učitan.")
+
+        self.current_graph = self.search_service.search(self.current_graph, query)
+        return self.current_graph
+
+    def apply_filter(self, attribute: str, operator: str, value: Any) -> Graph:
+        if not self.current_graph:
+            raise RuntimeError("Nijedan graf nije učitan.")
+
+        self.current_graph = self.filter_service.apply_filter(
+            self.current_graph, attribute, operator, value
+        )
+        return self.current_graph
+
+    def reset_graph(self) -> Graph:
+        if self.initial_graph is None:
+            raise RuntimeError("Nijedan graf nije učitan.")
+
+        self.current_graph = self.initial_graph
+        return self.current_graph
