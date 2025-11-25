@@ -28,4 +28,7 @@ urlpatterns = [
     path("api/graph/search", views.api_search, name='api_search'),
     path("api/graph/filter", views.api_filter, name='api_filter'),
     path("api/graph/reset", views.api_reset, name='api_reset'),
+    path('api/workspaces/', views.api_workspaces, name='api_workspaces'),
+    path('api/workspace/switch/<str:workspace_id>/', views.api_switch_workspace, name='api_switch_workspace'),
+    path('api/workspace/delete/<str:workspace_id>/', views.api_delete_workspace, name='api_delete_workspace'),
 ]

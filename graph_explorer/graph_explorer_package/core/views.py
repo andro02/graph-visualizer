@@ -1,12 +1,12 @@
 import os
 import json
-from django.shortcuts import render, redirect
-import base64
-import inspect
 from pathlib import Path
+from django.shortcuts import render, redirect
 from django.views import View
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponse, HttpResponseNotFound
+
+# Importi iz tvoje platforme
 from graph_platform.platform.graph_manager import GraphManager
 from graph_platform.platform.visualizer_loader import VisualizerLoader
 
@@ -17,8 +17,8 @@ class IndexView(View):
         loader = manager.get_data_source_loader()
 
         vis_loader = VisualizerLoader()
-        vis_loader = VisualizerLoader()
         
+        # Ucitavanje default vizualizatora (hardcoded za potrebe projekta)
         try:
             from simple_visualizer.simple_visualizer.plugin import SimpleVisualizer
             vis_loader.register_visualizer(SimpleVisualizer().name(), SimpleVisualizer)
@@ -39,8 +39,9 @@ class IndexView(View):
         
         plugins = loader.get_available_plugins()
         
-        # Skeniranje fajlova
+        # Skeniranje fajlova u direktorijumima pluginova
         files_map = {}
+        # Pretpostavka putanje: views.py -> core -> graph_explorer -> (root) -> data_source...
         base_dir = Path(__file__).resolve().parent.parent.parent.parent
         
         plugin_paths = {
@@ -74,187 +75,130 @@ class IndexView(View):
     def post(self, request):
         plugin_name = request.POST.get('plugin_name')
         file_path = request.POST.get('source_path')
-        
-        # 1. Hvatamo šta je korisnik izabrao za vizualizer
         visualizer = request.POST.get('visualizer') 
 
         if not plugin_name or not file_path:
             messages.error(request, "Morate izabrati plugin i fajl!")
-            # Vraćamo i vizualizer da se ne resetuje
             context = self._get_context_data(selected_visualizer=visualizer)
             return render(request, "core/index.html", context)
 
         manager = GraphManager()
         try:
-            graph = manager.load_graph_from_source(plugin_name, {"path": file_path})
+            # KREIRANJE WORKSPACE-A
+            workspace = manager.create_workspace(plugin_name, {"path": file_path})
+
+            if visualizer:
+                workspace.selected_visualizer = visualizer
             
-            graph_id = f"{plugin_name}_{file_path}"
-            raw_cache_key = f"{plugin_name}_{file_path}"
-            graph_id_safe = base64.urlsafe_b64encode(raw_cache_key.encode()).decode()
+            messages.success(request, f"Workspace '{workspace.name}' kreiran!")
             
-            messages.success(request, f"Graf uspešno učitan! ({len(graph.nodes)} čvorova)")
-            
-            # 2. Šaljemo visualizer nazad u kontekst
             context = self._get_context_data(selected_visualizer=visualizer)
-            context['graph_id'] = graph_id_safe
+            # KLJUČNO: Šaljemo ID workspace-a, a ne path
+            context['graph_id'] = workspace.id 
             
             return render(request, "core/index.html", context)
             
         except Exception as e:
             messages.error(request, f"Greska pri ucitavanju: {str(e)}")
+            import traceback
+            traceback.print_exc() # Ispis greske u konzolu servera
         
-        # I ovde vraćamo vizualizer
         context = self._get_context_data(selected_visualizer=visualizer)
         return render(request, "core/index.html", context)
 
-# --- API Funkcije ostaju iste ---
+
+# --- API ENDPOINTS ---
+
 def api_graphs(request):
+    """Vraća listu workspace-ova (koristi se za kompatibilnost)."""
     manager = GraphManager()
-    loaded_graphs = list(manager._cache.keys())
-    return JsonResponse({"graphs": loaded_graphs})
+    # Vraćamo ID-eve aktivnih workspace-ova
+    workspaces = manager.workspace_manager.get_all_workspaces()
+    ids = [w['id'] for w in workspaces]
+    return JsonResponse({"graphs": ids})
+
+def api_workspaces(request):
+    """Vraca detaljnu listu svih workspace-ova za tabove."""
+    manager = GraphManager()
+    return JsonResponse({"workspaces": manager.get_workspaces_info()})
+
+def api_switch_workspace(request, workspace_id):
+    """Menja aktivni workspace."""
+    manager = GraphManager()
+    try:
+        manager.switch_workspace(workspace_id)
+        return JsonResponse({"status": "ok", "active_id": workspace_id})
+    except ValueError as e:
+        return JsonResponse({"error": str(e)}, status=404)
+
+def api_delete_workspace(request, workspace_id):
+    """Brise workspace."""
+    manager = GraphManager()
+    manager.delete_workspace(workspace_id)
+    return JsonResponse({"status": "ok"})
 
 def api_visualize(request, graph_id):
-    """Vraca HTML vizualizaciju za zadati graph_id."""
+    """
+    Vraća HTML vizualizaciju. graph_id je UUID workspace-a.
+    """
     visualizer_name = request.GET.get('visualizer')
     manager = GraphManager()
     
-    try:
-        decoded_key = base64.urlsafe_b64decode(graph_id).decode()
-    except Exception:
-        return HttpResponseNotFound("Nevalidan ID grafa.")
-
-    # proveravamo kes
-    if decoded_key not in manager._cache:
-        return HttpResponseNotFound(f"Graf nije pronadjen.")
+    # 1. Pronađi workspace u menadžeru
+    workspace = manager.workspace_manager.get_workspace(graph_id)
     
-    graph = manager._cache[decoded_key]
+    if not workspace:
+         return HttpResponseNotFound(f"Workspace {graph_id} nije pronađen (Možda je server restartovan?).")
+    
+    # 2. Postavi ga kao aktivnog da bi render metoda znala šta da crta
+    manager.switch_workspace(graph_id)
 
+    if not visualizer_name:
+        visualizer_name = workspace.selected_visualizer
     if not visualizer_name:
         return HttpResponse("Please select a visualizer", status=400)
     
+    workspace.selected_visualizer = visualizer_name
+    
     try:
         vis_loader = VisualizerLoader()
-        from simple_visualizer.simple_visualizer.plugin import SimpleVisualizer
-        vis_loader.register_visualizer(SimpleVisualizer().name(), SimpleVisualizer)
-        from block_visualizer.block_visualizer.plugin import BlockVisualizer        
-        dummy_instance = BlockVisualizer()
         
-        vis_loader.register_visualizer(BlockVisualizer().name(), BlockVisualizer)
-        # --------------------------------
+        # Ponovna registracija za svaki slučaj (u produkciji bi ovo bilo u __init__)
+        try:
+            from simple_visualizer.simple_visualizer.plugin import SimpleVisualizer
+            vis_loader.register_visualizer(SimpleVisualizer().name(), SimpleVisualizer)
+        except ImportError: pass
+
+        try:
+            from block_visualizer.block_visualizer.plugin import BlockVisualizer
+            vis_loader.register_visualizer(BlockVisualizer().name(), BlockVisualizer)
+        except ImportError: pass
         
         vis_instance = vis_loader.get_visualizer(visualizer_name)
-        
         manager.set_visualizer(vis_instance)
-        return HttpResponse(manager.render(graph))
         
-    except KeyError:
-        return HttpResponse(f"Visualizer '{visualizer_name}' not found.", status=404)
+        # Renderuj AKTIVNI graf
+        return HttpResponse(manager.render())
+        
     except Exception as e:
+        import traceback
+        traceback.print_exc() 
         return HttpResponse(f"Greska pri renderovanju: {str(e)}", status=500)
-    
-def api_search(request):
-    """
-    Pretraga nad trenutno učitanim grafom (radi nad current_graph).
-    """
-    if request.method != "POST":
-        return JsonResponse({"error": "POST required"}, status=405)
-    
-    manager = GraphManager()
 
-    try:
-        data = json.loads(request.body)
-        query = data.get("query", "").strip()
-
-        if not query:
-            return JsonResponse({"error": "Query cannot be empty"}, status=400)
-
-        if manager.current_graph is None:
-            return JsonResponse({"error": "No graph loaded"}, status=400)
-
-        result_graph = manager.apply_search(query)
-        return JsonResponse(result_graph.to_dict(), safe=False)
-
-    except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
-    
-def api_filter(request):
-    """
-    Primena filtera nad trenutnim grafom.
-    Body treba da sadrži:
-    {
-        "attribute": "age",
-        "operator": ">",
-        "value": 30
-    }
-    """
-    if request.method != "POST":
-        return JsonResponse({"error": "POST required"}, status=405)
-    
-    manager = GraphManager()
-
-    try:
-        data = json.loads(request.body)
-
-        attribute = data.get("attribute")
-        operator = data.get("operator")
-        value = data.get("value")
-
-        if not all([attribute, operator]):
-            return JsonResponse({"error": "Missing filter fields"}, status=400)
-
-        if manager.current_graph is None:
-            return JsonResponse({"error": "No graph loaded"}, status=400)
-
-        result_graph = manager.apply_filter(attribute, operator, value)
-        return JsonResponse(result_graph.to_dict(), safe=False)
-
-    except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
-    
-def api_reset(request):
-    """
-    Resetuje current_graph na originalni graf (sačuvan u kešu).
-    Potrebno kada želite da uklonite sve filtere/search.
-    """
-    if request.method != "POST":
-        return JsonResponse({"error": "POST required"}, status=405)
-
-    manager = GraphManager()
-
-    try:
-        if manager.current_graph is None:
-            return JsonResponse({"error": "No graph loaded"}, status=400)
-
-        # Resetujemo tako što ponovo učitamo iz keša na osnovu ID-a current_graph-a
-        original_id = manager.current_graph.name
-        
-        if original_id not in manager._cache:
-            return JsonResponse({"error": "Graph not found in cache"}, status=404)
-
-        # Prebacujemo current_graph na original
-        manager.current_graph = manager._cache[original_id]
-
-        return JsonResponse(manager.current_graph.to_dict(), safe=False)
-
-    except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
-    
 def api_graph_json(request, graph_id):
     """
-    Vraca sirove podatke grafa (Nodes/Edges) u JSON formatu.
-    Ovo koristi Tree View da izgradi strukturu na klijentu.
+    Vraća JSON strukturu za Tree View na osnovu Workspace ID-a.
     """
     manager = GraphManager()
     
-    try:
-        decoded_key = base64.urlsafe_b64decode(graph_id).decode()
-    except Exception:
-        return HttpResponseNotFound("Nevalidan ID grafa.")
+    # Trazimo workspace po ID-ju
+    workspace = manager.workspace_manager.get_workspace(graph_id)
 
-    if decoded_key not in manager._cache:
-        return HttpResponseNotFound("Graf nije pronadjen.")
+    if not workspace:
+        return HttpResponseNotFound(f"Workspace sa ID {graph_id} nije pronađen.")
     
-    graph = manager._cache[decoded_key]
+    # Uzimamo trenutni graf iz workspace-a
+    graph = workspace.current_graph
     
     nodes = []
     for n in graph.nodes:
@@ -268,3 +212,53 @@ def api_graph_json(request, graph_id):
         links.append({"source": str(s), "target": str(t)})
         
     return JsonResponse({"nodes": nodes, "links": links})
+
+def api_search(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+    
+    manager = GraphManager()
+    try:
+        data = json.loads(request.body)
+        query = data.get("query", "").strip()
+
+        if not manager.workspace_manager.get_active_workspace():
+             return JsonResponse({"error": "No active workspace"}, status=400)
+
+        result_graph = manager.apply_search(query)
+        return JsonResponse(result_graph.to_dict(), safe=False)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+def api_filter(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+    
+    manager = GraphManager()
+    try:
+        data = json.loads(request.body)
+        attribute = data.get("attribute")
+        operator = data.get("operator")
+        value = data.get("value")
+
+        if not manager.workspace_manager.get_active_workspace():
+             return JsonResponse({"error": "No active workspace"}, status=400)
+
+        result_graph = manager.apply_filter(attribute, operator, value)
+        return JsonResponse(result_graph.to_dict(), safe=False)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+def api_reset(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+
+    manager = GraphManager()
+    try:
+        if not manager.workspace_manager.get_active_workspace():
+             return JsonResponse({"error": "No active workspace"}, status=400)
+
+        result_graph = manager.reset_graph()
+        return JsonResponse(result_graph.to_dict(), safe=False)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
