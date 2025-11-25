@@ -31,7 +31,7 @@ class SimpleVisualizer(BaseVisualizer):
                     if (!mainContainer || !birdContainer) return;
 
                     const width = mainContainer.clientWidth;
-                    const height = 600; 
+                    const height = mainContainer.clientHeight; 
                     
                     // Skaliranje za minimapu (20% velicine)
                     const minimapScale = 0.2; 
@@ -182,7 +182,7 @@ class SimpleVisualizer(BaseVisualizer):
         js_code = js_code.replace("GRAPH_DATA_PLACEHOLDER", graph_json)
 
         return f"""
-        <div id="simple-viz-container" style="width:100%; height:600px; border:1px solid #ddd; background: white;"></div>
+        <div id="simple-viz-container" style="width:100%; height:100%; border:1px solid #ddd; background: white;"></div>
         <script>
             {js_code}
         </script>

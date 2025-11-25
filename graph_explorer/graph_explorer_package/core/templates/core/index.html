@@ -242,7 +242,7 @@
         </div>
 
         <main class="main-view" id="main-container">
-            <div id="main-content" style="width: 100%; height: 100%; overflow: auto;">
+            <div id="main-content" style="width: 100%; height: 100%;">
                 <div style="text-align: center; padding-top: 50px; color: #888;">
                     <h2>Main View Canvas</h2>
                     <p>Select a file and click Load Graph</p>
@@ -347,6 +347,8 @@
                 headers: { "X-CSRFToken": getCSRFToken() }
              });
             refreshVisualization();
+        }
+
         function changeVisualizer() {
             if (currentGraphId) {
                 loadVisualization(currentGraphId);
