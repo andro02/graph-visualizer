@@ -1,4 +1,5 @@
 import os
+import json
 from django.shortcuts import render, redirect
 from django.views import View
 from django.conf import settings
@@ -105,3 +106,90 @@ def api_visualize(request, graph_id):
         return HttpResponse("BlockVisualizer nije instaliran.", status=500)
     except Exception as e:
         return HttpResponse(f"Greska pri renderovanju: {str(e)}", status=500)
+    
+def api_search(request):
+    """
+    Pretraga nad trenutno učitanim grafom (radi nad current_graph).
+    """
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+    
+    manager = GraphManager()
+
+    try:
+        data = json.loads(request.body)
+        query = data.get("query", "").strip()
+
+        if not query:
+            return JsonResponse({"error": "Query cannot be empty"}, status=400)
+
+        if manager.current_graph is None:
+            return JsonResponse({"error": "No graph loaded"}, status=400)
+
+        result_graph = manager.apply_search(query)
+        return JsonResponse(result_graph.to_dict(), safe=False)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+    
+def api_filter(request):
+    """
+    Primena filtera nad trenutnim grafom.
+    Body treba da sadrži:
+    {
+        "attribute": "age",
+        "operator": ">",
+        "value": 30
+    }
+    """
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+    
+    manager = GraphManager()
+
+    try:
+        data = json.loads(request.body)
+
+        attribute = data.get("attribute")
+        operator = data.get("operator")
+        value = data.get("value")
+
+        if not all([attribute, operator]):
+            return JsonResponse({"error": "Missing filter fields"}, status=400)
+
+        if manager.current_graph is None:
+            return JsonResponse({"error": "No graph loaded"}, status=400)
+
+        result_graph = manager.apply_filter(attribute, operator, value)
+        return JsonResponse(result_graph.to_dict(), safe=False)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+    
+def api_reset(request):
+    """
+    Resetuje current_graph na originalni graf (sačuvan u kešu).
+    Potrebno kada želite da uklonite sve filtere/search.
+    """
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+
+    manager = GraphManager()
+
+    try:
+        if manager.current_graph is None:
+            return JsonResponse({"error": "No graph loaded"}, status=400)
+
+        # Resetujemo tako što ponovo učitamo iz keša na osnovu ID-a current_graph-a
+        original_id = manager.current_graph.name
+        
+        if original_id not in manager._cache:
+            return JsonResponse({"error": "Graph not found in cache"}, status=404)
+
+        # Prebacujemo current_graph na original
+        manager.current_graph = manager._cache[original_id]
+
+        return JsonResponse(manager.current_graph.to_dict(), safe=False)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
