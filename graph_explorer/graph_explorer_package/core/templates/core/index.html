@@ -11,8 +11,8 @@
             display: grid;
             height: 100vh;
             grid-template-columns: 250px 1fr; 
-            /* Header (60px) + Tabs (40px) + Main + BirdView */
-            grid-template-rows: 60px 40px 1fr 200px; 
+            /* Header + Tabs + Main + BirdView */
+            grid-template-rows: auto auto 1fr 200px; 
             grid-template-areas: 
                 "header header"
                 "tabs tabs"
@@ -29,9 +29,19 @@
             padding: 0 20px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
             z-index: 10;
+            padding: 10px;
         }
 
-        /* --- NOVO: Workspace Tabs --- */
+        .toolbar-form {
+            display: grid;
+            grid-template-columns: repeat(4, auto); /* 4 kolone, možeš menjati */
+            grid-auto-rows: auto;
+            column-gap: 20px;
+            row-gap: 10px;
+            align-items: center;
+            width: 100%;
+        }
+
         .workspace-tabs {
             grid-area: tabs;
             background-color: #e9ecef;
@@ -39,13 +49,15 @@
             display: flex;
             align-items: flex-end;
             padding-left: 10px;
-            /* overflow-x: auto; */
+            padding-top: 10px;
+            overflow-x: auto;
+            overflow-y: hidden;
             gap: 5px;
         }
 
         .tab {
             background-color: #d1d8e0;
-            padding: 8px 15px;
+            padding: 3px 7px 4px 10px;
             border-radius: 8px 8px 0 0;
             border: 1px solid #ccc;
             border-bottom: none;
@@ -54,8 +66,7 @@
             color: #555;
             display: flex;
             align-items: center;
-            gap: 10px;
-            min-width: 100px;
+            gap: 5px;
             transition: background 0.2s;
         }
 
@@ -73,11 +84,11 @@
         }
 
         .tab-close {
+            margin-top: 3px;
             width: 18px;
             height: 18px;
             border-radius: 50%;
             display: flex;
-            align-items: center;
             justify-content: center;
             font-size: 12px;
             color: #777;
@@ -135,7 +146,6 @@
             border-radius: 4px;
             cursor: pointer;
             font-weight: bold;
-            margin-left: auto;
         }
         button.btn-load:hover { background-color: #218838; }
 
@@ -168,6 +178,52 @@
             padding: 15px 25px; margin-bottom: 10px; border-radius: 5px;
             box-shadow: 0 4px 10px rgba(0,0,0,0.2); font-weight: bold;
             animation: fadeOut 3s forwards;
+        }
+
+        .applied-tags {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            z-index: 20;
+        }
+
+        .tag {
+            background-color: #d1d8e0;
+            color: #333;
+            padding: 3px 7px 4px 10px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: background 0.2s;
+        }
+
+        .tag:hover {
+            background-color: #ced4da;
+        }
+
+        .tag span {
+            margin-top: 3px;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            font-size: 12px;
+            color: #777;
+            background-color: transparent;
+            border-color: transparent;
+        }
+
+        .tag span:hover {
+            background-color: #ff6b6b;
+            color: white;
         }
 
         @keyframes fadeOut {
@@ -231,6 +287,8 @@
                     </select>
                 </div>
 
+                <button type="submit" class="btn-load">Load Graph (New Tab)</button>
+
                 <div class="form-group">
                     <label>Search:</label>
                     <input id="searchQuery" type="text" placeholder="Search nodes..." class="form-input">
@@ -243,15 +301,14 @@
                     <select id="filterOp">
                         <option value=">">></option>
                         <option value="<"><</option>
-                        <option value="=">=</option>
+                        <option value="==">==</option>
                         <option value="!=">!=</option>
-                        <option value="contains">contains</option>
+                        <option value=">=">>=</option>
+                        <option value="<="><=</option>
                     </select>
                     <input id="filterValue" type="text" placeholder="value" class="form-input">
                     <button type="button" class="btn-load" onclick="filterGraph()">Apply</button>
                 </div>
-
-                <button type="submit" class="btn-load">Load Graph (New Tab)</button>
             </form>
         </header>
 
@@ -272,6 +329,21 @@
         </div>
 
         <main class="main-view" id="main-container">
+            <div id="applied-tags" class="applied-tags">
+                {% for search in applied_searches %}
+                    <div class="tag">
+                        Search: {{ search }}
+                        <span onclick="removeTag('search', '{{ search }}')">&times</span>
+                    </div>
+                {% endfor %}
+
+                {% for f in applied_filters %}
+                    <div class="tag">
+                        Filter: {{ f.attribute }} {{ f.operator }} {{ f.value }}
+                        <span onclick="removeTag('filter', '{{ f.attribute }}|{{ f.operator }}|{{ f.value }}')">&times</span>
+                    </div>
+                {% endfor %}
+            </div>
             <div id="main-content" style="width: 100%; height: 100%;">
                 <div style="text-align: center; padding-top: 50px; color: #888;">
                     <h2>Main View Canvas</h2>
@@ -344,6 +416,7 @@
 
                 if (isActive && ws.visualizer) {
                     visSelect.value = ws.visualizer;
+                    renderAppliedTags();
                 }
                 
                 // Klik na tab -> Switch
@@ -394,8 +467,6 @@
         }
 
         async function deleteWorkspace(workspaceId) {
-            if(!confirm("Are you sure you want to close this workspace?")) return;
-
             try {
                 const resp = await fetch(`/api/workspace/delete/${workspaceId}/`);
                 if (!resp.ok) throw new Error("Delete failed");
@@ -431,13 +502,53 @@
             });
         }
 
+        async function fetchTags() {
+            const response = await fetch("/api/tags/", {
+                method: "GET",
+                headers: { "Content-Type": "application/json", "X-CSRFToken": getCSRFToken() }
+            });
+            return await response.json();
+        }
+
+        async function renderAppliedTags(tags) {
+            if (!tags) {
+                tags = await fetchTags();
+            }
+
+            const container = document.getElementById("applied-tags");
+            container.innerHTML = "";
+
+            const applied_searches = tags[0] || [];
+            const applied_filters = tags[1] || [];
+
+            applied_searches.forEach(search => {
+                const tag = document.createElement("div");
+                tag.className = "tag";
+                tag.innerHTML = `Search: ${search} <span onclick="removeSearch('${search}')">&times</span>`;
+                container.appendChild(tag);
+            });
+
+            applied_filters.forEach(f => {
+                const tag = document.createElement("div");
+                tag.className = "tag";
+                tag.innerHTML = `Filter: ${f["attribute"]} ${f["operator"]} ${f["value"]} <span onclick="removeFilter('${f["attribute"]}|${f["operator"]}|${f["value"]}')">&times</span>`;
+                container.appendChild(tag);
+            });
+        }
+
         async function searchGraph() {
             const query = document.getElementById("searchQuery").value;
-            await fetch("/api/graph/search", {
+            const resp = await fetch("/api/graph/search", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "X-CSRFToken": getCSRFToken() },
                 body: JSON.stringify({ query })
             });
+
+            if (!resp.ok) return;
+
+            const data = await resp.json();
+            renderAppliedTags(data);
+
             // Refresh current
             if (currentActiveWorkspaceId) {
                 loadVisualization(currentActiveWorkspaceId);
@@ -449,12 +560,18 @@
             const attr = document.getElementById("filterAttr").value;
             const op = document.getElementById("filterOp").value;
             const value = document.getElementById("filterValue").value;
-            await fetch("/api/graph/filter", {
+            const resp = await fetch("/api/graph/filter", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "X-CSRFToken": getCSRFToken() },
                 body: JSON.stringify({ attribute: attr, operator: op, value })
             });
-             if (currentActiveWorkspaceId) {
+
+            if (!resp.ok) return;
+
+            const data = await resp.json();
+            renderAppliedTags(data);
+
+            if (currentActiveWorkspaceId) {
                 loadVisualization(currentActiveWorkspaceId);
                 loadTreeView(currentActiveWorkspaceId);
             }
@@ -596,7 +713,46 @@
             }
         }
 
-        // --- INIT ---
+        async function removeSearch(searchValue) {
+            await fetch("/api/remove-tag/", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "X-CSRFToken": getCSRFToken() },
+                body: JSON.stringify({
+                    type: "search",
+                    value: searchValue
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                renderAppliedTags(data);  
+                if (currentActiveWorkspaceId) {
+                    loadVisualization(currentActiveWorkspaceId);
+                    loadTreeView(currentActiveWorkspaceId);
+                }       
+            })
+            .catch(err => console.error("Error removing search:", err));
+        }
+
+        async function removeFilter(filterString) { 
+            await fetch("/api/remove-tag/", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "X-CSRFToken": getCSRFToken() },
+                body: JSON.stringify({
+                    type: "filter",
+                    value: filterString
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                renderAppliedTags(data);
+                if (currentActiveWorkspaceId) {
+                    loadVisualization(currentActiveWorkspaceId);
+                    loadTreeView(currentActiveWorkspaceId);
+                }       
+            })
+            .catch(err => console.error("Error removing filter:", err));
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             loadWorkspaces();
         });

@@ -125,7 +125,7 @@ class GraphManager:
         result_graph = self.search_service.search(active_ws.current_graph, query)
         
         active_ws.current_graph = result_graph
-        active_ws.active_search_query = query
+        active_ws.active_searches.append(query)
         return active_ws.current_graph
 
     def apply_filter(self, attribute: str, operator: str, value: Any) -> Graph:
@@ -148,3 +148,31 @@ class GraphManager:
 
         active_ws.reset()
         return active_ws.current_graph
+    
+    def reset(self) -> Graph:
+        active_ws = self.workspace_manager.get_active_workspace()
+        if not active_ws:
+            raise RuntimeError("Nijedan workspace nije aktivan.")
+
+        active_ws.reset_graph()
+        return active_ws.current_graph
+    
+    def get_applied_tags(self):
+        active_ws = self.workspace_manager.get_active_workspace()
+        return active_ws.active_searches, active_ws.active_filters
+    
+    def get_applied_searches(self):
+        active_ws = self.workspace_manager.get_active_workspace()
+        return active_ws.active_searches
+    
+    def get_applied_filters(self):
+        active_ws = self.workspace_manager.get_active_workspace()
+        return active_ws.active_filters
+    
+    def remove_search(self, search):
+        active_ws = self.workspace_manager.get_active_workspace()
+        return active_ws.active_searches.remove(search)
+    
+    def remove_filter(self, filter):
+        active_ws = self.workspace_manager.get_active_workspace()
+        return active_ws.active_filters.remove(filter)
