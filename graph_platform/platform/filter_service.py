@@ -1,5 +1,5 @@
 from typing import Any
-from api.api.graph import Graph, Node
+from api.api.graph import Graph, Node, parse_value
 
 class FilterService:
     """
@@ -21,24 +21,21 @@ class FilterService:
         op_func = self.OPERATORS[operator]
         matched_nodes = []
 
+        cast_value = parse_value(value)
+
         for node in graph.nodes:
             attr_value = node.data.get(attribute)
             if attr_value is None:
                 continue
 
-            # Pokušaj da kastuje value u tip atributa
-            try:
-                if isinstance(attr_value, int):
-                    cast_value = int(value)
-                elif isinstance(attr_value, float):
-                    cast_value = float(value)
-                else:
-                    cast_value = str(value)
-            except ValueError:
-                raise ValueError(f"Vrednost '{value}' ne može biti konvertovana u tip atributa '{type(attr_value).__name__}'")
+            if type(attr_value) != type(cast_value) and operator not in ["==", "!="]:
+                continue
 
-            if op_func(attr_value, cast_value):
-                matched_nodes.append(node)
+            try:
+                if op_func(attr_value, cast_value):
+                    matched_nodes.append(node)
+            except Exception:
+                continue
 
         # Kreiraj novi podgraf
         new_graph = Graph(name=f"{graph.name} (filter)")
