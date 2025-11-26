@@ -5,6 +5,7 @@ from api.api.base_visualizer import BaseVisualizer
 from graph_platform.platform.data_source_loader import DataSourceLoader
 from graph_platform.platform.search_service import SearchService
 from graph_platform.platform.filter_service import FilterService
+from graph_platform.platform.cli_service import CLIService
 
 # IMPORTUJEMO NOVE KLASE
 # (Pazi da su fajlovi workspace.py i workspace_manager.py u istom folderu kao graph_manager.py)
@@ -30,6 +31,8 @@ class GraphManager:
             # 2. Services
             cls._instance.search_service = SearchService()
             cls._instance.filter_service = FilterService()
+
+            cls._instance.cli_service = CLIService()
 
             # 3. Workspace Manager
             cls._instance.workspace_manager = WorkspaceManager()
@@ -127,7 +130,17 @@ class GraphManager:
         active_ws.current_graph = result_graph
         active_ws.active_searches.append(query)
         return active_ws.current_graph
+    
+    def apply_cli_command(self, query:str) -> Graph:
+        active_ws = self.workspace_manager.get_active_workspace()
+        if not active_ws:
+            raise RuntimeError("Nijedan workspace nije aktivan.")
 
+        result_graph = self.cli_service.execute_command(active_ws.current_graph, query)
+        
+        active_ws.current_graph = result_graph
+        return active_ws.current_graph
+    
     def apply_filter(self, attribute: str, operator: str, value: Any) -> Graph:
         active_ws = self.workspace_manager.get_active_workspace()
         if not active_ws:
