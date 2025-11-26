@@ -222,11 +222,15 @@ def api_search(request):
         data = json.loads(request.body)
         query = data.get("query", "").strip()
 
+        if not query:
+            return JsonResponse({"error": "Query cannot be empty"}, status=400)
+
         if not manager.workspace_manager.get_active_workspace():
              return JsonResponse({"error": "No active workspace"}, status=400)
 
         result_graph = manager.apply_search(query)
-        return JsonResponse(result_graph.to_dict(), safe=False)
+
+        return JsonResponse(manager.get_applied_tags(), safe=False)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
     
@@ -262,11 +266,14 @@ def api_filter(request):
         operator = data.get("operator")
         value = data.get("value")
 
+        if not attribute or not operator or not value:
+            return JsonResponse({"error": "Attribute, operator, and value must be provided"}, status=400)
+
         if not manager.workspace_manager.get_active_workspace():
              return JsonResponse({"error": "No active workspace"}, status=400)
 
         result_graph = manager.apply_filter(attribute, operator, value)
-        return JsonResponse(result_graph.to_dict(), safe=False)
+        return JsonResponse(manager.get_applied_tags(), safe=False)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
 
@@ -281,5 +288,63 @@ def api_reset(request):
 
         result_graph = manager.reset_graph()
         return JsonResponse(result_graph.to_dict(), safe=False)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+    
+def api_remove_tag(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+
+    manager = GraphManager()
+
+    try:
+        data = json.loads(request.body)
+        tag_type = data.get("type")  
+        tag_value = data.get("value") 
+
+        if tag_type not in ["search", "filter"]:
+            return JsonResponse({"error": "Invalid type"}, status=400)
+
+        if tag_type == "search":
+            if tag_value in manager.get_applied_searches():
+                manager.remove_search(tag_value)
+
+        elif tag_type == "filter":
+            attribute, operator, value = tag_value.split("|")
+            triple = {'attribute': attribute, 'operator': operator, 'value': value}
+
+            if triple in manager.get_applied_filters():
+                manager.remove_filter(triple)
+
+        searches = manager.get_applied_searches()
+        filters = manager.get_applied_filters()
+        result_graph = manager.reset_graph()
+
+        for s in searches:
+            manager.apply_search(s)
+
+        for f in filters:
+            a = f["attribute"]
+            o = f["operator"]
+            v = f["value"]
+
+            triple = {'attribute': a, 'operator': o, 'value': v}
+            manager.apply_filter(a, o, v)
+
+        return JsonResponse(manager.get_applied_tags(), safe=False)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+    
+def api_get_tags(request):
+    if request.method != "GET":
+        return JsonResponse({"error": "GET required"}, status=405)
+    
+    manager = GraphManager()
+    try:
+        if not manager.workspace_manager.get_active_workspace():
+             return JsonResponse({"error": "No active workspace"}, status=400)
+
+        return JsonResponse(manager.get_applied_tags(), safe=False)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)

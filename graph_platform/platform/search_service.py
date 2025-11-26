@@ -1,37 +1,44 @@
 from api.api.graph import Graph, Node
+from datetime import date, datetime
 
 class SearchService:
     """
-    Implementacija pretrage nad grafom.
+    Pretraga nad grafom: pretrazujemo label, nazive atributa i vrednosti atributa.
     """
     def search(self, graph: Graph, query: str) -> Graph:
-        """
-        Traži čvorove čiji atributi sadrže query tekst.
-        Vraća novi podgraf.
-        """
+        if not query:
+            return graph 
+
         query_lower = query.lower()
         matched_nodes = []
 
         for node in graph.nodes:
-            # Proveri label i sve atribute
-            if query_lower in node.label.lower():
-                matched_nodes.append(node)
-                continue
+            for key, value in node.data.items():
 
-            for v in node.data.values():
-                if isinstance(v, str) and query_lower in v.lower():
-                    matched_nodes.append(node)
-                    break
-                elif isinstance(v, (int, float)) and query_lower in str(v):
+                if key.lower() == "id":
+                    continue
+
+                if query_lower in key.lower():
                     matched_nodes.append(node)
                     break
 
-        # Kreiraj novi podgraf
+                if isinstance(value, (str, int, float)):
+                    if query_lower in str(value).lower():
+                        matched_nodes.append(node)
+                        break
+
+                elif isinstance(value, (date, datetime)):
+                    if query_lower in value.isoformat().lower():
+                        matched_nodes.append(node)
+                        break
+
         new_graph = Graph(name=f"{graph.name} (search)")
         new_graph.nodes = matched_nodes
 
-        # Dodaj samo edge-ove između čvorova koji postoje u matched_nodes
         node_ids = {n.id for n in matched_nodes}
-        new_graph.edges = [e for e in graph.edges if e.source in node_ids and e.target in node_ids]
+        new_graph.edges = [
+            e for e in graph.edges
+            if e.source in node_ids and e.target in node_ids
+        ]
 
         return new_graph

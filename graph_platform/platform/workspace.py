@@ -17,7 +17,7 @@ class Workspace:
         self.current_graph = original_graph
 
         # Istorija promena
-        self.active_search_query = None
+        self.active_searches = []
         self.active_filters = []
         # Ovde pamtimo koji vizualizator koristi OVAJ workspace
         self.selected_visualizer = "Simple Visualizer" # Default vrednost
@@ -28,5 +28,8 @@ class Workspace:
     def reset(self):
         """Vraća workspace na početno stanje."""
         self.current_graph = self.initial_graph
-        self.active_search_query = None
+        self.active_searches = []
         self.active_filters = []
+
+    def reset_graph(self):
+        self.current_graph = self.initial_graph

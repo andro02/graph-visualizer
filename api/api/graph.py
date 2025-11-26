@@ -1,10 +1,30 @@
 from typing import Any, Dict, List
+from datetime import datetime
+
+def parse_value(value):
+    """Automatski pokušava da pretvori value u int, float, date, ili ostavi kao string."""
+    if isinstance(value, (int, float, datetime)):
+        return value
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except:
+            pass
+        try:
+            return float(value)
+        except:
+            pass
+        try:
+            return datetime.fromisoformat(value)
+        except:
+            pass
+    return value 
 
 class Node:
     def __init__(self, id: str, label: str = "", data: Dict[str, Any] = None):
         self.id = id
         self.label = label
-        self.data = data or {}
+        self.data = {k: parse_value(v) for k, v in (data or {}).items()}
 
     def to_dict(self):
         return {
@@ -19,7 +39,7 @@ class Edge:
         self.source = source
         self.target = target
         self.weight = weight
-        self.data = data or {}
+        self.data = {k: parse_value(v) for k, v in (data or {}).items()}
 
     def to_dict(self):
         return {
