@@ -205,6 +205,44 @@ class BlockVisualizer(BaseVisualizer):
                         birdViz.node.attr("transform", d => `translate(${{d.x}},${{d.y}})`);
                     }});
 
+                    const centerX = width / 2;
+                    const centerY = height / 2;
+                    const w = 60; // širina čvora
+                    const s = 20;    // minimalni razmak između čvorova
+                    const n = data.nodes.length;
+                    const radius = Math.max(1000, (n * (w + s)) / (2 * Math.PI));
+
+                    data.nodes.forEach((d, i) => {{
+                        const angle = (i / n) * 2 * Math.PI;
+                        d.x = centerX + radius * Math.cos(angle);
+                        d.y = centerY + radius * Math.sin(angle);
+                    }});
+
+                    (function fitBird() {{
+                        const nodes = data.nodes;
+                        if (!nodes || nodes.length === 0) return;
+
+                        const padding = 20;
+                        const xValues = nodes.map(d => d.x);
+                        const yValues = nodes.map(d => d.y);
+                        const minX = Math.min(...xValues);
+                        const maxX = Math.max(...xValues);
+                        const minY = Math.min(...yValues);
+                        const maxY = Math.max(...yValues);
+
+                        const dx = maxX - minX;
+                        const dy = maxY - minY;
+
+                        const birdWidth = birdContainer.clientWidth;
+                        const birdHeight = birdContainer.clientHeight;
+
+                        const scale = Math.min(birdWidth / (dx + 2 * padding), birdHeight / (dy + 2 * padding));
+                        const translateX = birdWidth / 2 - scale * (minX + dx / 2);
+                        const translateY = birdHeight / 2 - scale * (minY + dy / 2);
+
+                        birdG.attr("transform", `translate(${{translateX}},${{translateY}}) scale(${{scale}})`);
+                    }})();
+
                     function dragstarted(event, d) {{ if (!event.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; }}
                     function dragged(event, d) {{ d.fx = event.x; d.fy = event.y; }}
                     function dragended(event, d) {{ if (!event.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; }}
