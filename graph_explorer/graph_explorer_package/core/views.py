@@ -229,6 +229,27 @@ def api_search(request):
         return JsonResponse(result_graph.to_dict(), safe=False)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+    
+def api_cli(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+    manager = GraphManager()
+    
+    active_ws = manager.workspace_manager.get_active_workspace()
+    if not active_ws:
+        return JsonResponse({"error": "No active workspace."}, status=400)
+
+    try:
+        data = json.loads(request.body)
+        query = data.get("command", "").strip()
+
+        if not manager.workspace_manager.get_active_workspace():
+             return JsonResponse({"error": "No active workspace"}, status=400)
+        
+        result_graph = manager.apply_cli_command(query)
+        return JsonResponse(result_graph.to_dict(), safe=False)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
 
 def api_filter(request):
     if request.method != "POST":
