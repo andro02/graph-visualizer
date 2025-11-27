@@ -4,9 +4,10 @@ from typing import Dict, Any, List
 from api.api.data_source import DataSourcePlugin, PluginParameter, PluginParameterType
 from api.api.graph import Node, Edge, Graph
 
+
 class CSVDataSource(DataSourcePlugin):
     """
-    CSV format (jedan fajl) implementiran u skladu sa DataSourcePlugin API-jem.
+    CSV format (jedan fajl) sa automatskom detekcijom usmerenog / neusmerenog grafa.
     """
 
     def name(self) -> str:
@@ -36,8 +37,9 @@ class CSVDataSource(DataSourcePlugin):
             raise FileNotFoundError(f"CSV fajl nije pronađen: {csv_path}")
 
         nodes = {}
-        edges = []
+        edges_raw = []   # privremeno sve ivice
 
+        # --- 1. ČITANJE CSV FAJLA ---
         with open(csv_path, encoding="utf-8") as f:
             reader = csv.DictReader(f)
 
@@ -45,19 +47,60 @@ class CSVDataSource(DataSourcePlugin):
                 node_id = row["id"]
                 label = row.get("label", node_id)
 
+                # Kreiranje čvora ako ne postoji
                 if node_id not in nodes:
-                    nodes[node_id] = Node(id=node_id, label=label, data={"id": node_id, "label": label})
+                    nodes[node_id] = Node(
+                        id=node_id,
+                        label=label,
+                        data={"id": node_id, "label": label}
+                    )
 
+                # Obrada ivica
                 target = row.get("target")
                 if target and target.strip():
-                    weight = float(row.get("weight", 1) or 1)
                     if target not in nodes:
-                        nodes[target] = Node(id=target, label=target, data={"id": target, "label": target})
-                    edges.append(Edge(source=node_id, target=target, weight=weight))
+                        nodes[target] = Node(
+                            id=target,
+                            label=target,
+                            data={"id": target, "label": target}
+                        )
 
-        g = Graph(name=graph_name)
+                    weight = float(row.get("weight", 1) or 1)
+
+                    # Dodaj ivicu u privremenu listu
+                    edges_raw.append((node_id, target, weight))
+
+        # --- 2. AUTOMATSKA DETEKCIJA USMEREN / NEUSMEREN ---
+        edge_pairs = {(s, t) for (s, t, w) in edges_raw}
+
+        is_undirected = True
+        for (u, v) in edge_pairs:
+            if (v, u) not in edge_pairs:
+                is_undirected = False
+                break
+
+        # --- 3. KREIRANJE LISTE IVICA ---
+        edges = []
+
+        if is_undirected:
+            # ukloni duplikate: A-B i B-A
+            unique_pairs = set()
+            for (s, t, w) in edges_raw:
+                key = tuple(sorted([s, t]))
+                if key not in unique_pairs:
+                    unique_pairs.add(key)
+                    edges.append(Edge(source=s, target=t, weight=w))
+        else:
+            # usmeren graf → uzmi sve ivice
+            for (s, t, w) in edges_raw:
+                edges.append(Edge(source=s, target=t, weight=w))
+
+        # --- 4. KREIRANJE Grafa ---
+        g = Graph(name=graph_name, directed=not is_undirected)
+
         for node in nodes.values():
             g.add_node(node)
+
         for edge in edges:
             g.add_edge(edge)
 

@@ -1,0 +1,7 @@
+id,label,target,weight
+A,Start,B,5
+B,End,A,5
+B,End,C,3
+C,Middle,B,3
+C,Middle,D,1
+D,NodeD,C,1

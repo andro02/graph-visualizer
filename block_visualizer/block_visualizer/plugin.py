@@ -27,7 +27,7 @@ class BlockVisualizer(BaseVisualizer):
             t = e.target.id if hasattr(e.target, "id") else e.target
             links_data.append({"source": str(s), "target": str(t)})
 
-        graph_json = json.dumps({"nodes": nodes_data, "links": links_data})
+        graph_json = json.dumps({"nodes": nodes_data, "links": links_data, "directed": graph.directed})
 
         # --- 2. GENERISANJE HTML-a ---
         js_logic = f"""
@@ -113,11 +113,13 @@ class BlockVisualizer(BaseVisualizer):
                                 .append("path").attr("d", "M0,-5L10,0L0,5").attr("fill", "#555");
                         }}
 
+                        const isDirected = data.directed;
+
                         const link = container.append("g").selectAll("line")
                             .data(data.links).join("line")
                             .attr("stroke", "#555")
                             .attr("stroke-width", isMinimap ? 5 : 2)
-                            .attr("marker-end", isMinimap ? null : "url(#arrowhead-block)");
+                            .attr("marker-end", isDirected && !isMinimap ? "url(#arrowhead-block)" : null);
 
                         const node = container.append("g").selectAll("g")
                             .data(data.nodes).join("g");

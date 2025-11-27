@@ -51,8 +51,9 @@ class Edge:
 
 
 class Graph:
-    def __init__(self, name: str = None, nodes: List[Node] = None, edges: List[Edge] = None):
+    def __init__(self, name: str = None, directed: bool = True, nodes: List[Node] = None, edges: List[Edge] = None):
         self.name = name
+        self.directed = directed
         self.nodes = nodes or []
         self.edges = edges or []
 
@@ -76,6 +77,7 @@ class Graph:
     def to_dict(self):
         return {
             "name": self.name,
+            "directed": self.directed,
             "nodes": [n.to_dict() for n in self.nodes],
             "edges": [e.to_dict() for e in self.edges],
         }
