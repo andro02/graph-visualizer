@@ -32,7 +32,7 @@ class SearchService:
                         matched_nodes.append(node)
                         break
 
-        new_graph = Graph(name=f"{graph.name} (search)")
+        new_graph = Graph(name=f"{graph.name} (search)", directed=graph.directed)
         new_graph.nodes = matched_nodes
 
         node_ids = {n.id for n in matched_nodes}

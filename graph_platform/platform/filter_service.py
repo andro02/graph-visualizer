@@ -38,7 +38,7 @@ class FilterService:
                 continue
 
         # Kreiraj novi podgraf
-        new_graph = Graph(name=f"{graph.name} (filter)")
+        new_graph = Graph(name=f"{graph.name} (filter)", directed=graph.directed)
         new_graph.nodes = matched_nodes
 
         node_ids = {n.id for n in matched_nodes}
