@@ -1,0 +1,12 @@
+{
+  "nodes": [
+    { "id": "A", "label": "Pocetak" },
+    { "id": "B", "label": "Sredina" },
+    { "id": "C", "label": "Kraj" }
+  ],
+  "links": [
+    { "source": "A", "target": "B" },
+    { "source": "B", "target": "C" },
+    { "source": "C", "target": "A" }
+  ]
+}

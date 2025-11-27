@@ -1,3 +1,4 @@
+#json plugin
 import os
 import json
 from typing import Dict, Any, List
@@ -27,12 +28,52 @@ class JSONDataSource(DataSourcePlugin):
             data = json.load(f)
 
         graph = Graph()
-        self.parsed_nodes = {}  #za pracenje vec kreiranih cvorova
-        
-        # root -> id pocetnog cvora
-        self.parse_recursive(graph, data, "root")
+        graph.directed = True # Bitno za usmerene cikluse
+
+        # Da li je ovo format koji podrzava cikluse
+        if isinstance(data, dict) and "nodes" in data and "links" in data:
+            self._parse_flat_format(graph, data)
+        else:
+            self.parsed_nodes = {} 
+            self.parse_recursive(graph, data, "root")
         
         return graph
+
+    def _parse_flat_format(self, graph: Graph, data: Dict[str, Any]):
+        """
+        Parser za format koji eksplicitno definise cvorove i veze.
+        Ovaj format omogucava cikluse (npr. A->B->A).
+        """
+        # Ucitavanje cvorova
+        for node_data in data.get("nodes", []):
+            node_id = str(node_data.get("id"))
+            node_label = node_data.get("label", node_id)
+            
+            node = Node(id=node_id)
+            node.label = node_label
+            
+            # Sve ostalo ide u data atribute
+            for k, v in node_data.items():
+                if k not in ["id", "label"]:
+                    node.data[k] = v
+            
+            graph.add_node(node)
+
+        # Ucitavanje veza
+        for link_data in data.get("links", []):
+            source_id = str(link_data.get("source"))
+            target_id = str(link_data.get("target"))
+            
+            # Provera da li cvorovi postoje pre kreiranja veze
+            source_exists = any(n.id == source_id for n in graph.nodes)
+            target_exists = any(n.id == target_id for n in graph.nodes)
+
+            if source_exists and target_exists:
+                # Izdvajamo atribute veze
+                edge_data = {k: v for k, v in link_data.items() if k not in ["source", "target"]}
+                
+                edge = Edge(source=source_id, target=target_id, data=edge_data)
+                graph.add_edge(edge)
 
     def parse_recursive(self, graph: Graph, data: Any, current_id: str) -> Node:
         # Provera ID-a unutar podataka (ako postoji @id polje, ono ima prednost)
@@ -44,6 +85,14 @@ class JSONDataSource(DataSourcePlugin):
             return self.parsed_nodes[current_id]
 
         node = Node(id=current_id)
+        # Pokusaj da nadjes labelu ili name u podacima
+        if isinstance(data, dict):
+            if "name" in data: node.label = data["name"]
+            elif "label" in data: node.label = data["label"]
+            else: node.label = current_id
+        else:
+            node.label = current_id
+
         graph.add_node(node)
         self.parsed_nodes[current_id] = node
 
