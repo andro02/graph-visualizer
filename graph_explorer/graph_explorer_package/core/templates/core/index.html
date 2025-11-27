@@ -623,6 +623,7 @@
         function changeVisualizer() {
             if (currentActiveWorkspaceId) {
                 loadVisualization(currentActiveWorkspaceId);
+                loadTreeView(currentActiveWorkspaceId)
             }
         }
 
@@ -717,7 +718,8 @@
             labelSpan.textContent = node.label;
             li.appendChild(labelSpan);
 
-            if (node.attributes && Object.keys(node.attributes).length > 0) {
+            const visSelect = document.getElementById('visualizer-select');
+            if (node.attributes && Object.keys(node.attributes).length > 0 && visSelect.value == "Block Visualizer") {
                 const attrDiv = document.createElement('div');
                 attrDiv.className = 'tree-attributes';
                 attrDiv.style.marginLeft = '22px';

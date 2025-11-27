@@ -43,6 +43,7 @@ class JSONDataSource(DataSourcePlugin):
         """
         Parser za format koji eksplicitno definise cvorove i veze.
         Ovaj format omogucava cikluse (npr. A->B->A).
+        Takođe prepoznaje neusmeren graf.
         """
         # Ucitavanje cvorova
         for node_data in data.get("nodes", []):
@@ -59,21 +60,32 @@ class JSONDataSource(DataSourcePlugin):
             
             graph.add_node(node)
 
-        # Ucitavanje veza
+        # --- Ucitavanje veza i skladištenje parova za proveru ---
+        edge_pairs = set()  # set svih (source, target) za proveru neusmerenosti
         for link_data in data.get("links", []):
             source_id = str(link_data.get("source"))
             target_id = str(link_data.get("target"))
-            
-            # Provera da li cvorovi postoje pre kreiranja veze
+
+            # Provera da li cvorovi postoje
             source_exists = any(n.id == source_id for n in graph.nodes)
             target_exists = any(n.id == target_id for n in graph.nodes)
 
             if source_exists and target_exists:
-                # Izdvajamo atribute veze
                 edge_data = {k: v for k, v in link_data.items() if k not in ["source", "target"]}
-                
                 edge = Edge(source=source_id, target=target_id, data=edge_data)
                 graph.add_edge(edge)
+
+                # Dodaj u set za proveru neusmerenosti
+                edge_pairs.add((source_id, target_id))
+
+        # --- Prepoznavanje neusmerenog grafa ---
+        undirected = True
+        for s, t in edge_pairs:
+            if (t, s) not in edge_pairs:
+                undirected = False
+                break
+
+        graph.directed = not undirected
 
     def parse_recursive(self, graph: Graph, data: Any, current_id: str) -> Node:
         # Provera ID-a unutar podataka (ako postoji @id polje, ono ima prednost)

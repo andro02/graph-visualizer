@@ -1,9 +1,33 @@
 import csv
+from datetime import datetime
 import os
 from typing import Dict, Any, List
 from api.api.data_source import DataSourcePlugin, PluginParameter, PluginParameterType
 from api.api.graph import Node, Edge, Graph
 
+def parse_value(v: str):
+        """Pokuša da konvertuje vrednost u int, float, date ili ostavi kao string."""
+        v = v.strip()
+        if not v:
+            return None
+        # 1. Pokušaj int
+        try:
+            return int(v)
+        except ValueError:
+            pass
+        # 2. Pokušaj float
+        try:
+            return float(v)
+        except ValueError:
+            pass
+        # 3. Pokušaj datum (YYYY-MM-DD)
+        try:
+            dt = datetime.strptime(v, "%Y-%m-%d")
+            return dt.strftime("%Y-%m-%d")  # ostavi kao string za JSON
+        except ValueError:
+            pass
+        # 4. Ako ništa, ostavi kao string
+        return v
 
 class CSVDataSource(DataSourcePlugin):
     """
@@ -47,13 +71,18 @@ class CSVDataSource(DataSourcePlugin):
                 node_id = row["id"]
                 label = row.get("label", node_id)
 
+                # Ekstraktujemo atribute osim specijalnih kolona
+                node_data = {k: parse_value(v) for k, v in row.items() if k not in ["id", "label", "target", "weight"] and v.strip() != ""}
+
                 # Kreiranje čvora ako ne postoji
                 if node_id not in nodes:
                     nodes[node_id] = Node(
                         id=node_id,
                         label=label,
-                        data={"id": node_id, "label": label}
+                        data={"id": node_id, "label": label, **node_data}
                     )
+                else:
+                    nodes[node_id].data.update(node_data)
 
                 # Obrada ivica
                 target = row.get("target")
@@ -66,8 +95,6 @@ class CSVDataSource(DataSourcePlugin):
                         )
 
                     weight = float(row.get("weight", 1) or 1)
-
-                    # Dodaj ivicu u privremenu listu
                     edges_raw.append((node_id, target, weight))
 
         # --- 2. AUTOMATSKA DETEKCIJA USMEREN / NEUSMEREN ---
