@@ -30,18 +30,24 @@ class SimpleVisualizer(BaseVisualizer):
                     
                     if (!mainContainer || !birdContainer) return;
 
-                    const width = mainContainer.clientWidth;
-                    const height = mainContainer.clientHeight; 
+                    const mainWidth = mainContainer.clientWidth;
+                    const mainHeight = mainContainer.clientHeight || 600; 
                     
-                    // Skaliranje za minimapu (20% velicine)
-                    const minimapScale = 0.2; 
+                    const birdWidth = birdContainer.clientWidth;
+                    const birdHeight = birdContainer.clientHeight || 200;
+                    
+                    // Promenljive za dinamicko skaliranje
+                    let currentMinimapScale = 1;
+                    let currentMinimapX = 0;
+                    let currentMinimapY = 0;
+                    let currentMainTransform = d3.zoomIdentity;
 
                     // --- 1. MAIN VIEW SETUP ---
                     d3.select("#simple-viz-container").html("");
                     const svg = d3.select("#simple-viz-container").append("svg")
-                        .attr("width", "100%").attr("height", height)
+                        .attr("width", "100%").attr("height", "100%")
                         .style("background", "white")
-                        .attr("viewBox", `0 0 ${{width}} ${{height}}`); // Bitno za koordinatni sistem
+                        .attr("viewBox", `0 0 ${{mainWidth}} ${{mainHeight}}`); 
 
                     const g = svg.append("g");
 
@@ -49,14 +55,10 @@ class SimpleVisualizer(BaseVisualizer):
                     d3.select("#bird-view-container").html("");
                     const birdSvg = d3.select("#bird-view-container").append("svg")
                         .attr("width", "100%").attr("height", "100%")
-                        .style("background", "#f5f5f5") // Malo tamnija pozadina da se razlikuje
+                        .style("background", "#f5f5f5") 
                         .style("border", "1px solid #ccc");
                     
-                    // FIX: Uklonjen translate, samo scale. 
-                    // Posto simulacija centrira cvorove na width/2, height/2, 
-                    // oni ce na minimapi biti na (width/2)*0.2, (height/2)*0.2
-                    const birdG = birdSvg.append("g")
-                        .attr("transform", `scale(${{minimapScale}})`);
+                    const birdG = birdSvg.append("g"); // Bez fiksnog transforma
 
                     const viewportRect = birdSvg.append("rect")
                         .attr("fill", "none").attr("stroke", "red").attr("stroke-width", 2);
@@ -65,30 +67,14 @@ class SimpleVisualizer(BaseVisualizer):
                     const zoom = d3.zoom()
                         .scaleExtent([0.1, 4])
                         .on("zoom", (event) => {{
-                            // 1. Pomeramo glavni graf
+                            currentMainTransform = event.transform;
                             g.attr("transform", event.transform);
-                            
-                            // 2. Azuriramo crveni pravougaonik na mapi
-                            const t = event.transform;
-                            
-                            // Invertujemo transformaciju da dobijemo sta se vidi
-                            // x na mapi = ((-t.x / t.k) * scale)
-                            const mapX = (-t.x / t.k) * minimapScale;
-                            const mapY = (-t.y / t.k) * minimapScale;
-                            const mapW = (width / t.k) * minimapScale;
-                            const mapH = (height / t.k) * minimapScale;
-
-                            viewportRect
-                                .attr("x", mapX)
-                                .attr("y", mapY)
-                                .attr("width", mapW)
-                                .attr("height", mapH);
+                            updateRedRectangle();
                         }});
 
                     svg.call(zoom);
 
                     // Definicija strelice (arrowhead)
-                    
                     if (data.directed) {{
                         svg.append("defs").append("marker")
                             .attr("id", "arrow")
@@ -105,11 +91,10 @@ class SimpleVisualizer(BaseVisualizer):
                     }}
 
                     // --- SIMULATION ---
-                    // Centriramo simulaciju tacno u centar glavnog kontejnera
                     const simulation = d3.forceSimulation(data.nodes)
                         .force("link", d3.forceLink(data.links).id(d => d.id).distance(100))
                         .force("charge", d3.forceManyBody().strength(-300))
-                        .force("center", d3.forceCenter(width / 2, height / 2));
+                        .force("center", d3.forceCenter(mainWidth / 2, mainHeight / 2));
 
                     // --- FUNKCIJA ZA CRTANJE ---
                     function drawGraph(containerGroup, isMinimap) {{
@@ -126,19 +111,19 @@ class SimpleVisualizer(BaseVisualizer):
                         // Krug
                         node.append("circle")
                             .attr("r", isMinimap ? 6 : 20) // Velicina
-                            .attr("fill", isMinimap ? "#888" : "#e3f2fd") // FIX: Plava boja na glavnom, siva na mapi
+                            .attr("fill", isMinimap ? "#888" : "#e3f2fd") 
                             .attr("stroke", "#333")
                             .attr("stroke-width", isMinimap ? 0 : 2);
 
                         // Tekst (samo na glavnom)
                         if (!isMinimap) {{
                             node.append("text")
-								.text(d => d.label || d.id)
-								.attr("text-anchor", "middle")
-								.attr("dy", 5)
-								.style("font-family", "sans-serif")
-								.style("font-size", "12px")
-								.style("pointer-events", "none"); // Da ne smeta pri kliku
+                                .text(d => d.label || d.id)
+                                .attr("text-anchor", "middle")
+                                .attr("dy", 5)
+                                .style("font-family", "sans-serif")
+                                .style("font-size", "12px")
+                                .style("pointer-events", "none"); 
                                 
                             node.call(d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended));
                         }}
@@ -149,30 +134,81 @@ class SimpleVisualizer(BaseVisualizer):
                     const mainViz = drawGraph(g, false);
                     const birdViz = drawGraph(birdG, true);
 
+                    // --- AUTO FIT MINIMAP ---
+                    function autoFitMinimap() {{
+                        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+                        
+                        data.nodes.forEach(d => {{
+                            if (d.x < minX) minX = d.x;
+                            if (d.x > maxX) maxX = d.x;
+                            if (d.y < minY) minY = d.y;
+                            if (d.y > maxY) maxY = d.y;
+                        }});
+
+                        if (minX === Infinity) return; 
+
+                        const graphWidth = maxX - minX + 100; // Margina
+                        const graphHeight = maxY - minY + 100; 
+
+                        const scaleX = birdWidth / graphWidth;
+                        const scaleY = birdHeight / graphHeight;
+                        currentMinimapScale = Math.min(scaleX, scaleY) * 0.9;
+
+                        const graphCenterX = (minX + maxX) / 2;
+                        const graphCenterY = (minY + maxY) / 2;
+
+                        currentMinimapX = (birdWidth / 2) - (graphCenterX * currentMinimapScale);
+                        currentMinimapY = (birdHeight / 2) - (graphCenterY * currentMinimapScale);
+
+                        birdG.attr("transform", `translate(${{currentMinimapX}}, ${{currentMinimapY}}) scale(${{currentMinimapScale}})`);
+                        
+                        updateRedRectangle();
+                    }}
+
+                    function updateRedRectangle() {{
+                        const t = currentMainTransform;
+                        const worldX = -t.x / t.k;
+                        const worldY = -t.y / t.k;
+                        const worldW = mainWidth / t.k;
+                        const worldH = mainHeight / t.k;
+
+                        const birdX = worldX * currentMinimapScale + currentMinimapX;
+                        const birdY = worldY * currentMinimapScale + currentMinimapY;
+                        const birdW = worldW * currentMinimapScale;
+                        const birdH = worldH * currentMinimapScale;
+
+                        viewportRect
+                            .attr("x", birdX)
+                            .attr("y", birdY)
+                            .attr("width", birdW)
+                            .attr("height", birdH);
+                    }}
+
                     // --- TICK ---
                     simulation.on("tick", () => {{
                         // Main View Update
                         mainViz.link
                             .attr("x1", d => d.source.x).attr("y1", d => d.source.y)
-                            .attr("x2", d => d.target.x).attr("y2", d => d.target.y)
-                            .attr("marker-end", "url(#arrow)");
+                            .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
                         
-                        // Kod grupa (g) koristimo translate
                         mainViz.node.attr("transform", d => `translate(${{d.x}},${{d.y}})`);
 
-                        // Bird View Update (Iste koordinate!)
+                        // Bird View Update
                         birdViz.link
                             .attr("x1", d => d.source.x).attr("y1", d => d.source.y)
                             .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
                             
                         birdViz.node.attr("transform", d => `translate(${{d.x}},${{d.y}})`);
+
+                        // AUTO FIT CALL
+                        autoFitMinimap();
                     }});
 
                     function dragstarted(event, d) {{ if (!event.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; }}
                     function dragged(event, d) {{ d.fx = event.x; d.fy = event.y; }}
                     function dragended(event, d) {{ if (!event.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; }}
                     
-                    // Inicijalizacija zooma na 0,0 (da se crveni pravougaonik pojavi odmah)
+                    // Inicijalni zoom
                     svg.call(zoom.transform, d3.zoomIdentity);
 
                 }} catch (err) {{
