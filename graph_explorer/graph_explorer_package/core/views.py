@@ -191,25 +191,44 @@ def api_graph_json(request, graph_id):
     """
     manager = GraphManager()
     
-    # Trazimo workspace po ID-ju
     workspace = manager.workspace_manager.get_workspace(graph_id)
 
     if not workspace:
         return HttpResponseNotFound(f"Workspace sa ID {graph_id} nije pronađen.")
     
-    # Uzimamo trenutni graf iz workspace-a
     graph = workspace.current_graph
     
     nodes = []
     for n in graph.nodes:
         label = getattr(n, "label", str(n.id)) or str(n.id)
-        nodes.append({"id": str(n.id), "label": label})
+
+        # Uzimamo sve atribute ako postoje
+        attributes = {}
+        if hasattr(n, "data") and isinstance(n.data, dict):
+            attributes = n.data
+
+        nodes.append({
+            "id": str(n.id),
+            "label": label,
+            "attributes": attributes
+        })
         
     links = []
     for e in graph.edges:
+
         s = e.source.id if hasattr(e.source, "id") else e.source
         t = e.target.id if hasattr(e.target, "id") else e.target
-        links.append({"source": str(s), "target": str(t)})
+        
+        # Atributi ivice
+        edge_attr = {}
+        if hasattr(e, "attributes") and isinstance(e.attributes, dict):
+            edge_attr = e.attributes
+
+        links.append({
+            "source": str(s),
+            "target": str(t),
+            "attributes": edge_attr
+        })
         
     return JsonResponse({"nodes": nodes, "links": links})
 

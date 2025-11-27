@@ -16,7 +16,7 @@ class SimpleVisualizer(BaseVisualizer):
             t = e.target.id if hasattr(e.target, "id") else e.target
             links_data.append({"source": str(s), "target": str(t)})
 
-        graph_json = json.dumps({"nodes": nodes_data, "links": links_data})
+        graph_json = json.dumps({"nodes": nodes_data, "links": links_data, "directed": graph.directed})
 
         # --- 2. GENERISANJE HTML-a ---
         js_code = f"""
@@ -89,18 +89,20 @@ class SimpleVisualizer(BaseVisualizer):
 
                     // Definicija strelice (arrowhead)
                     
-                    svg.append("defs").append("marker")
-                        .attr("id", "arrow")
-                        .attr("viewBox", "0 0 10 10")
-                        .attr("refX", 30)      
-                        .attr("refY", 5)
-                        .attr("markerWidth", 6)
-                        .attr("markerHeight", 6)
-                        .attr("markerUnits", "strokeWidth")
-                        .attr("orient", "auto")
-                        .append("path")
-                        .attr("d", "M 0 0 L 10 5 L 0 10 z")
-                        .attr("fill", "#999");
+                    if (data.directed) {{
+                        svg.append("defs").append("marker")
+                            .attr("id", "arrow")
+                            .attr("viewBox", "0 0 10 10")
+                            .attr("refX", 30)      
+                            .attr("refY", 5)
+                            .attr("markerWidth", 6)
+                            .attr("markerHeight", 6)
+                            .attr("markerUnits", "strokeWidth")
+                            .attr("orient", "auto")
+                            .append("path")
+                            .attr("d", "M 0 0 L 10 5 L 0 10 z")
+                            .attr("fill", "#999");
+                    }}
 
                     // --- SIMULATION ---
                     // Centriramo simulaciju tacno u centar glavnog kontejnera

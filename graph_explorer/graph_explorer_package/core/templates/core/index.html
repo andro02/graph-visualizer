@@ -12,7 +12,7 @@
             height: 100vh;
             grid-template-columns: 250px 1fr; 
             /* Header + Tabs + Main + BirdView */
-            grid-template-rows: auto auto 1fr 200px 200px; 
+            grid-template-rows: auto auto 1fr 200px auto; 
             grid-template-areas: 
                 "header header"
                 "tabs tabs"
@@ -251,7 +251,7 @@
         }
 
         .cli-input {
-            width: 100%;
+            width: 99%;
             background: #ffffff;
             border: 1px solid #ccc;
             color: #333;
@@ -341,11 +341,11 @@
                     </select>
                     <input id="filterValue" type="text" placeholder="value" class="form-input">
                     <button type="button" class="btn-load" onclick="filterGraph()">Apply</button>
+                    <button type="button" id="cli-toggle-btn" class="btn-load">
+                        Open CLI
+                    </button>
                 </div>
             </form>
-            <button type="button" id="cli-toggle-btn" style="border:none;cursor:pointer;">
-                Open CLI
-            </button>
         </header>
 
         <div class="workspace-tabs" id="tabs-container">
@@ -361,7 +361,7 @@
 
         <div class="bird-view">
             <h3 class="panel-title">Bird View</h3>
-            <div id="bird-view-container" style="width: 100%; height: 100%; overflow: hidden; position: relative;"></div>
+            <div id="bird-view-container"></div>
         </div>
 
         <main class="main-view" id="main-container">
@@ -716,6 +716,22 @@
             labelSpan.className = 'tree-label';
             labelSpan.textContent = node.label;
             li.appendChild(labelSpan);
+
+            if (node.attributes && Object.keys(node.attributes).length > 0) {
+                const attrDiv = document.createElement('div');
+                attrDiv.className = 'tree-attributes';
+                attrDiv.style.marginLeft = '22px';
+                attrDiv.style.fontSize = '12px';
+                attrDiv.style.color = '#666';
+
+                for (const [key, value] of Object.entries(node.attributes)) {
+                    const p = document.createElement('div');
+                    p.textContent = `${key}: ${value}`;
+                    attrDiv.appendChild(p);
+                }
+
+                li.appendChild(attrDiv);
+            }
 
             if (hasChildren) {
                 const childrenUl = document.createElement('ul');
